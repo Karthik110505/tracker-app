@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GATE Offline Saver</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-container">
+        <div class="logo-icon">⚡</div>
+        <div class="logo-text">
+          <h1>GATE Offline</h1>
+          <span>Saver & Archiver</span>
+        </div>
+      </div>
+      <button id="btn-settings" class="btn-settings-toggle" title="Settings">⚙️</button>
+    </header>
+
+    <main class="app-main">
+      <!-- Settings Panel (Collapsible) -->
+      <div id="settings-panel-card" class="card settings-card hidden">
+        <h3 class="settings-title">Preferences</h3>
+        
+        <div class="settings-group">
+          <div class="setting-row">
+            <div class="setting-label">
+              <span class="setting-name">Save automatically</span>
+              <span class="setting-desc">Bypasses the "Save As" file dialog</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-autosave">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <label for="setting-subfolder" class="setting-label-block">
+            <span class="setting-name">Default Subfolder</span>
+            <span class="setting-desc">Folder path inside your main Downloads directory</span>
+          </label>
+          <input type="text" id="setting-subfolder" placeholder="e.g. GATE_Results" class="text-input">
+          <div id="subfolder-warning" class="subfolder-warning hidden"></div>
+        </div>
+      </div>
+
+      <div class="card" id="main-actions-card">
+        <p class="description">Save this exam result page offline. All images, charts, mathematical symbols, and formatting will be embedded directly into the file.</p>
+        
+        <div class="actions">
+          <button id="btn-html" class="btn btn-primary">
+            <span class="btn-icon">📄</span>
+            <div class="btn-content">
+              <span class="btn-title">Save Offline HTML</span>
+              <span class="btn-subtitle">Single file (Highly compatible)</span>
+            </div>
+          </button>
+          
+          <button id="btn-mhtml" class="btn btn-secondary">
+            <span class="btn-icon">📦</span>
+            <div class="btn-content">
+              <span class="btn-title">Save MHTML Archive</span>
+              <span class="btn-subtitle">Native Chrome format</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div id="status-panel" class="status-panel hidden">
+        <div class="spinner-container">
+          <div class="spinner"></div>
+        </div>
+        <div class="status-details">
+          <div id="status-title" class="status-title">Preparing...</div>
+          <div class="progress-bar-container">
+            <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+          </div>
+          <div id="status-message" class="status-message">Ready to compile page.</div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>Works offline. Strips interactive scripts to freeze results.</p>
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

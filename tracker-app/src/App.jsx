@@ -1,0 +1,387 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  FolderPlus, Plus, Upload, Download, Trash2, 
+  Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut 
+} from 'lucide-react';
+import { dbService } from './db';
+import FolderNav from './components/FolderNav';
+import Dashboard from './components/Dashboard';
+import TestLoggerModal from './components/TestLoggerModal';
+import PaperViewer from './components/PaperViewer';
+import Login from './components/Login';
+
+export default function App() {
+  // Check if session token exists in local storage
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return localStorage.getItem('gate_tracker_auth') === 'true';
+  });
+
+  const [folders, setFolders] = useState([]);
+  const [tests, setTests] = useState([]);
+  
+  // activeFolderId starts as null (General Dashboard)
+  const [activeFolderId, setActiveFolderId] = useState(null);
+  
+  // UI states
+  const [isLoggerOpen, setIsLoggerOpen] = useState(false);
+  const [selectedPaper, setSelectedPaper] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Load database content on launch
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    async function loadData() {
+      try {
+        const f = await dbService.getFolders();
+        const t = await dbService.getAllTests();
+        setFolders(f);
+        setTests(t);
+      } catch (err) {
+        console.error('Error initializing database:', err);
+      }
+    }
+    loadData();
+  }, [isLoggedIn]);
+
+  // Folder Operations
+  const handleCreateFolder = async (folder) => {
+    try {
+      await dbService.saveFolder(folder);
+      setFolders(prev => [...prev, folder]);
+      setActiveFolderId(folder.id);
+      setSelectedPaper(null); // Clear paper viewer
+    } catch (e) {
+      alert('Failed to create folder: ' + e.message);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    try {
+      await dbService.deleteFolder(folderId);
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      setTests(prev => prev.filter(t => t.folderId !== folderId));
+      setActiveFolderId(null);
+      setSelectedPaper(null);
+    } catch (e) {
+      alert('Failed to delete folder: ' + e.message);
+    }
+  };
+
+  // Test Operations
+  const handleSaveTest = async (testRecord) => {
+    try {
+      await dbService.saveTest(testRecord);
+      setTests(prev => {
+        const exists = prev.some(t => t.id === testRecord.id);
+        if (exists) {
+          return prev.map(t => t.id === testRecord.id ? testRecord : t);
+        } else {
+          return [...prev, testRecord];
+        }
+      });
+      setIsLoggerOpen(false);
+    } catch (e) {
+      alert('Failed to save test record: ' + e.message);
+    }
+  };
+
+  const handleDeleteTest = async (testId) => {
+    if (!confirm('Are you sure you want to delete this test result?')) return;
+    try {
+      await dbService.deleteTest(testId);
+      setTests(prev => prev.filter(t => t.id !== testId));
+      if (selectedPaper && selectedPaper.id === testId) {
+        setSelectedPaper(null);
+      }
+    } catch (e) {
+      alert('Failed to delete test: ' + e.message);
+    }
+  };
+
+  // Backup & Import Operations
+  const handleExportBackup = async () => {
+    try {
+      const dataStr = await dbService.exportDatabase();
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GATE_Tracker_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to export backup: ' + e.message);
+    }
+  };
+
+  const handleImportBackup = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        await dbService.importDatabase(event.target.result);
+        alert('Database restored successfully!');
+        
+        // Reload states
+        const f = await dbService.getFolders();
+        const t = await dbService.getAllTests();
+        setFolders(f);
+        setTests(t);
+        setActiveFolderId(null); // Return to General Dashboard
+        setSelectedPaper(null);
+      } catch (err) {
+        alert('Restore failed. Invalid backup file: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Authentication logout
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to log out?')) {
+      localStorage.removeItem('gate_tracker_auth');
+      setIsLoggedIn(false);
+      setSelectedPaper(null);
+    }
+  };
+
+  // If not logged in, render the login card
+  if (!isLoggedIn) {
+    return <Login onLogin={() => setIsLoggedIn(true)} />;
+  }
+
+  // Filter data: If folder is null, we show ALL tests, else filter by folderId
+  const activeFolder = folders.find(f => f.id === activeFolderId);
+  const isGeneral = activeFolderId === null;
+  const filteredTests = isGeneral 
+    ? tests 
+    : tests.filter(t => t.folderId === activeFolderId);
+
+  const getFolderName = (folderId) => {
+    const folder = folders.find(f => f.id === folderId);
+    return folder ? folder.name : 'Unknown';
+  };
+
+  return (
+    <div class="app-layout">
+      
+      {/* Sidebar Navigation */}
+      <aside class="sidebar">
+        <div class="logo-section">
+          <div class="logo-icon">⚡</div>
+          <div class="logo-text">
+            <h2>GATE Tracker</h2>
+            <span>GATE 2027 Revision Tracker</span>
+          </div>
+        </div>
+
+        {/* Foldernav component */}
+        <FolderNav
+          folders={folders}
+          activeFolderId={activeFolderId}
+          onSelectFolder={(id) => {
+            setActiveFolderId(id);
+            setSelectedPaper(null); // Close paper viewer
+          }}
+          onCreateFolder={handleCreateFolder}
+          onDeleteFolder={handleDeleteFolder}
+        />
+
+        {/* Import / Export / Logout Utility */}
+        <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-card)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImportBackup}
+            style={{ display: 'none' }}
+          />
+          <button 
+            onClick={handleExportBackup} 
+            class="btn btn-secondary" 
+            style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
+          >
+            <Download size={14} />
+            <span>Export Backup</span>
+          </button>
+          <button 
+            onClick={() => fileInputRef.current.click()} 
+            class="btn btn-secondary" 
+            style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
+          >
+            <Upload size={14} />
+            <span>Import Backup</span>
+          </button>
+          <button 
+            onClick={handleLogout} 
+            class="btn btn-danger" 
+            style={{ width: '100%', fontSize: '12px', padding: '8px 12px', marginTop: '4px' }}
+          >
+            <LogOut size={14} />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Workspace Pane */}
+      <main class="main-content">
+        
+        {/* If viewing a selected paper, load the iframe frame */}
+        {selectedPaper ? (
+          <PaperViewer
+            title={selectedPaper.title}
+            paperHtml={selectedPaper.paperHtml}
+            onClose={() => setSelectedPaper(null)}
+          />
+        ) : (
+          <>
+            <div class="dashboard-header">
+              <div class="dashboard-title">
+                <h1>{isGeneral ? 'General Dashboard' : activeFolder.name}</h1>
+                <p>
+                  {isGeneral 
+                    ? 'Aggregated performance metrics across all of your classes, categories, and folders' 
+                    : 'Track mock test statistics, review performance history, and analyze progress'}
+                </p>
+              </div>
+              <div class="header-actions">
+                {/* Allow logging a test from anywhere, as long as at least one folder exists */}
+                {folders.length > 0 && (
+                  <button 
+                    onClick={() => setIsLoggerOpen(true)} 
+                    class="btn btn-primary"
+                  >
+                    <Plus size={16} />
+                    <span>Log Test Result</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Dashboard component */}
+            <Dashboard 
+              folderName={isGeneral ? 'General Dashboard' : activeFolder.name} 
+              tests={filteredTests}
+              folders={folders}
+              isGeneral={isGeneral}
+            />
+
+            {/* Logged Tests Table Grid */}
+            <div class="glass-card">
+              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+                {isGeneral ? 'All Logged Tests History' : `${activeFolder.name} Test History`}
+              </h3>
+              
+              {filteredTests.length > 0 ? (
+                <div class="records-table-container">
+                  <table class="records-table">
+                    <thead>
+                      <tr>
+                        {isGeneral && <th>Category</th>}
+                        <th>Exam Name</th>
+                        <th>Date</th>
+                        <th>Marks</th>
+                        <th>Accuracy</th>
+                        <th>Attempts</th>
+                        <th>Duration</th>
+                        <th>Tags</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTests.map((test) => (
+                        <tr key={test.id}>
+                          {isGeneral && (
+                            <td>
+                              <span class="badge badge-info" style={{ textTransform: 'uppercase', fontSize: '9px', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
+                                {getFolderName(test.folderId)}
+                              </span>
+                            </td>
+                          )}
+                          <td style={{ fontWeight: '600' }}>{test.title}</td>
+                          <td style={{ color: 'var(--text-muted)' }}>{test.date}</td>
+                          <td>
+                            <span class="badge badge-success">
+                              {test.marks.toFixed(2)} / {test.totalMarks}
+                            </span>
+                          </td>
+                          <td style={{ color: 'var(--color-secondary)', fontWeight: '600' }}>{test.accuracy}</td>
+                          <td>{test.attempted} / {test.totalQs}</td>
+                          <td>{test.timeTaken} ({test.duration})</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {test.tags.map((t, idx) => (
+                                <span key={idx} class="badge badge-info" style={{ fontSize: '9px', padding: '2px 6px' }}>
+                                  {t}
+                                </span>
+                              ))}
+                              {test.tags.length === 0 && <span style={{ color: 'var(--text-dark)', fontSize: '12px' }}>-</span>}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                              {test.paperHtml ? (
+                                <button 
+                                  onClick={() => setSelectedPaper(test)} 
+                                  class="btn btn-secondary" 
+                                  style={{ padding: '6px', borderRadius: '6px' }}
+                                  title="View Embedded Paper"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                              ) : (
+                                <span class="btn btn-secondary" style={{ padding: '6px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed' }} title="No paper HTML logged">
+                                  <Eye size={14} />
+                                </span>
+                              )}
+                              <button 
+                                onClick={() => handleDeleteTest(test.id)} 
+                                class="btn btn-danger" 
+                                style={{ padding: '6px', borderRadius: '6px' }}
+                                title="Delete Result"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <AlertCircle size={24} style={{ margin: '0 auto 8px auto', color: 'var(--text-dark)' }} />
+                  <p style={{ fontSize: '14px' }}>No test results logged yet.</p>
+                  {folders.length > 0 && (
+                    <button 
+                      onClick={() => setIsLoggerOpen(true)} 
+                      class="btn btn-secondary" 
+                      style={{ marginTop: '12px', fontSize: '13px' }}
+                    >
+                      Log your first result
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </main>
+
+      {/* Renders the modal sheet to upload HTML or input values */}
+      {isLoggerOpen && (
+        <TestLoggerModal
+          folderId={isGeneral ? null : activeFolderId}
+          folders={folders}
+          onClose={() => setIsLoggerOpen(false)}
+          onSave={handleSaveTest}
+        />
+      )}
+
+    </div>
+  );
+}
