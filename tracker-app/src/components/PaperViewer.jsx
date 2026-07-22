@@ -2,54 +2,49 @@ import React from 'react';
 import { ExternalLink, X } from 'lucide-react';
 
 export default function PaperViewer({ title, paperHtml, onClose }) {
+  // Open the saved HTML paper in a new browser tab for full screen review
   const handleOpenNewTab = () => {
-    try {
-      const blob = new Blob([paperHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    } catch (e) {
-      console.error('Failed to open paper in new tab:', e);
-      alert('Could not open paper in a new tab. Please try viewing it in the frame below.');
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.write(paperHtml);
+      newWindow.document.close();
+    } else {
+      alert('Pop-up blocked. Please allow pop-ups for this site to open the exam sheet.');
     }
   };
 
   return (
-    <div class="glass-card paper-viewer-container" style={{ flexGrow: 1 }}>
-      <div class="paper-viewer-header">
-        <div>
-          <h3 style={{ fontSize: '16px', fontWeight: '700' }}>📄 Exam Paper: {title}</h3>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Viewing sandboxed offline document loaded from local database
-          </span>
-        </div>
+    <div className="glass-card paper-viewer-container" style={{ flexGrow: 1 }}>
+      <div className="paper-viewer-header">
+        <h2 style={{ fontSize: '16px', fontWeight: '700' }}>{title}</h2>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
-            onClick={handleOpenNewTab} 
-            class="btn btn-secondary" 
-            style={{ padding: '6px 12px', fontSize: '12px' }}
-            title="Open Fullscreen in New Tab"
+            onClick={handleOpenNewTab}
+            className="btn btn-secondary" 
+            style={{ padding: '8px 12px', fontSize: '13px' }}
+            title="Open Exam in New Tab"
           >
             <ExternalLink size={14} />
-            <span>Fullscreen</span>
+            <span>Open Full Screen</span>
           </button>
-          
           <button 
-            onClick={onClose} 
-            class="btn btn-danger" 
-            style={{ padding: '6px 12px', fontSize: '12px' }}
+            onClick={onClose}
+            className="btn btn-danger" 
+            style={{ padding: '8px', borderRadius: '50%' }}
+            title="Close Viewer"
           >
-            <X size={14} />
-            <span>Close Paper</span>
+            <X size={16} />
           </button>
         </div>
       </div>
-      
+
+      {/* Renders the offline compiled HTML code inside a sandboxed frame */}
       <iframe
-        title="Exam Paper Viewer"
+        title="Offline Exam Paper"
         srcDoc={paperHtml}
         sandbox="allow-same-origin allow-popups allow-downloads"
-        class="paper-iframe"
-        style={{ flexGrow: 1, minHeight: '500px', width: '100%', border: '1px solid var(--border-card)', borderRadius: '8px' }}
+        className="paper-iframe"
+        style={{ width: '100%', height: 'calc(100vh - 200px)', border: 'none', background: '#ffffff', borderRadius: '8px' }}
       />
     </div>
   );

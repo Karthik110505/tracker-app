@@ -27,6 +27,15 @@ export default function App() {
   const [selectedPaper, setSelectedPaper] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Global error listener to alert users to exact JavaScript console errors
+  useEffect(() => {
+    const handleError = (event) => {
+      alert(`App Runtime Error: ${event.message}\nFile: ${event.filename}\nLine: ${event.lineno}`);
+    };
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
   // Load database content on launch
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -166,13 +175,13 @@ export default function App() {
   };
 
   return (
-    <div class="app-layout">
+    <div className="app-layout">
       
       {/* Sidebar Navigation */}
-      <aside class="sidebar">
-        <div class="logo-section">
-          <div class="logo-icon">⚡</div>
-          <div class="logo-text">
+      <aside className="sidebar">
+        <div className="logo-section">
+          <div className="logo-icon">⚡</div>
+          <div className="logo-text">
             <h2>GATE Tracker</h2>
             <span>GATE 2027 Revision Tracker</span>
           </div>
@@ -201,7 +210,7 @@ export default function App() {
           />
           <button 
             onClick={handleExportBackup} 
-            class="btn btn-secondary" 
+            className="btn btn-secondary" 
             style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
           >
             <Download size={14} />
@@ -209,7 +218,7 @@ export default function App() {
           </button>
           <button 
             onClick={() => fileInputRef.current.click()} 
-            class="btn btn-secondary" 
+            className="btn btn-secondary" 
             style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
           >
             <Upload size={14} />
@@ -217,7 +226,7 @@ export default function App() {
           </button>
           <button 
             onClick={handleLogout} 
-            class="btn btn-danger" 
+            className="btn btn-danger" 
             style={{ width: '100%', fontSize: '12px', padding: '8px 12px', marginTop: '4px' }}
           >
             <LogOut size={14} />
@@ -227,7 +236,7 @@ export default function App() {
       </aside>
 
       {/* Main Workspace Pane */}
-      <main class="main-content">
+      <main className="main-content">
         
         {/* If viewing a selected paper, load the iframe frame */}
         {selectedPaper ? (
@@ -238,8 +247,8 @@ export default function App() {
           />
         ) : (
           <>
-            <div class="dashboard-header">
-              <div class="dashboard-title">
+            <div className="dashboard-header">
+              <div className="dashboard-title">
                 <h1>{isGeneral ? 'General Dashboard' : activeFolder.name}</h1>
                 <p>
                   {isGeneral 
@@ -247,12 +256,12 @@ export default function App() {
                     : 'Track mock test statistics, review performance history, and analyze progress'}
                 </p>
               </div>
-              <div class="header-actions">
+              <div className="header-actions">
                 {/* Allow logging a test from anywhere, as long as at least one folder exists */}
                 {folders.length > 0 && (
                   <button 
                     onClick={() => setIsLoggerOpen(true)} 
-                    class="btn btn-primary"
+                    className="btn btn-primary"
                   >
                     <Plus size={16} />
                     <span>Log Test Result</span>
@@ -270,14 +279,14 @@ export default function App() {
             />
 
             {/* Logged Tests Table Grid */}
-            <div class="glass-card">
+            <div className="glass-card">
               <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
                 {isGeneral ? 'All Logged Tests History' : `${activeFolder.name} Test History`}
               </h3>
               
               {filteredTests.length > 0 ? (
-                <div class="records-table-container">
-                  <table class="records-table">
+                <div className="records-table-container">
+                  <table className="records-table">
                     <thead>
                       <tr>
                         {isGeneral && <th>Category</th>}
@@ -296,7 +305,7 @@ export default function App() {
                         <tr key={test.id}>
                           {isGeneral && (
                             <td>
-                              <span class="badge badge-info" style={{ textTransform: 'uppercase', fontSize: '9px', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
+                              <span className="badge badge-info" style={{ textTransform: 'uppercase', fontSize: '9px', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
                                 {getFolderName(test.folderId)}
                               </span>
                             </td>
@@ -304,7 +313,7 @@ export default function App() {
                           <td style={{ fontWeight: '600' }}>{test.title}</td>
                           <td style={{ color: 'var(--text-muted)' }}>{test.date}</td>
                           <td>
-                            <span class="badge badge-success">
+                            <span className="badge badge-success">
                               {test.marks.toFixed(2)} / {test.totalMarks}
                             </span>
                           </td>
@@ -314,7 +323,7 @@ export default function App() {
                           <td>
                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                               {test.tags.map((t, idx) => (
-                                <span key={idx} class="badge badge-info" style={{ fontSize: '9px', padding: '2px 6px' }}>
+                                <span key={idx} className="badge badge-info" style={{ fontSize: '9px', padding: '2px 6px' }}>
                                   {t}
                                 </span>
                               ))}
@@ -326,20 +335,20 @@ export default function App() {
                               {test.paperHtml ? (
                                 <button 
                                   onClick={() => setSelectedPaper(test)} 
-                                  class="btn btn-secondary" 
+                                  className="btn btn-secondary" 
                                   style={{ padding: '6px', borderRadius: '6px' }}
                                   title="View Embedded Paper"
                                 >
                                   <Eye size={14} />
                                 </button>
                               ) : (
-                                <span class="btn btn-secondary" style={{ padding: '6px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed' }} title="No paper HTML logged">
+                                <span className="btn btn-secondary" style={{ padding: '6px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed' }} title="No paper HTML logged">
                                   <Eye size={14} />
                                 </span>
                               )}
                               <button 
                                 onClick={() => handleDeleteTest(test.id)} 
-                                class="btn btn-danger" 
+                                className="btn btn-danger" 
                                 style={{ padding: '6px', borderRadius: '6px' }}
                                 title="Delete Result"
                               >
@@ -359,7 +368,7 @@ export default function App() {
                   {folders.length > 0 && (
                     <button 
                       onClick={() => setIsLoggerOpen(true)} 
-                      class="btn btn-secondary" 
+                      className="btn btn-secondary" 
                       style={{ marginTop: '12px', fontSize: '13px' }}
                     >
                       Log your first result

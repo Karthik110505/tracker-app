@@ -262,7 +262,7 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Exam Duration (e.g. 180 Min)</label>
                 <input
                   type="text"

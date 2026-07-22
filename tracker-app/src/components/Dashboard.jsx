@@ -107,7 +107,7 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
       
       {/* Top Section: Welcome & Countdown */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <div class="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '6px' }}>
             {isGeneral ? 'General Revision Tracker' : 'GATE 2027 Dashboard'}
           </h2>
@@ -121,83 +121,83 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
           </p>
         </div>
 
-        <div class="glass-card countdown-card">
-          <div class="countdown-info">
+        <div className="glass-card countdown-card">
+          <div className="countdown-info">
             <h3>GATE 2027 Timer</h3>
             <p>Time remaining until the GATE 2027 exam</p>
           </div>
-          <div class="countdown-digits">
-            <div class="countdown-block">
-              <span class="countdown-number">{timeLeft.days}</span>
-              <span class="countdown-label">Days</span>
+          <div className="countdown-digits">
+            <div className="countdown-block">
+              <span className="countdown-number">{timeLeft.days}</span>
+              <span className="countdown-label">Days</span>
             </div>
-            <div class="countdown-block">
-              <span class="countdown-number">{timeLeft.hours.toString().padStart(2, '0')}</span>
-              <span class="countdown-label">Hrs</span>
+            <div className="countdown-block">
+              <span className="countdown-number">{timeLeft.hours.toString().padStart(2, '0')}</span>
+              <span className="countdown-label">Hrs</span>
             </div>
-            <div class="countdown-block">
-              <span class="countdown-number">{timeLeft.minutes.toString().padStart(2, '0')}</span>
-              <span class="countdown-label">Min</span>
+            <div className="countdown-block">
+              <span className="countdown-number">{timeLeft.minutes.toString().padStart(2, '0')}</span>
+              <span className="countdown-label">Min</span>
             </div>
-            <div class="countdown-block">
-              <span class="countdown-number">{timeLeft.seconds.toString().padStart(2, '0')}</span>
-              <span class="countdown-label">Sec</span>
+            <div className="countdown-block">
+              <span className="countdown-number">{timeLeft.seconds.toString().padStart(2, '0')}</span>
+              <span className="countdown-label">Sec</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* KPI Stats Grid */}
-      <div class="stats-grid">
-        <div class="glass-card stat-card">
-          <div class="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
+      <div className="stats-grid">
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
             <Calendar size={22} />
           </div>
-          <div class="stat-info">
-            <span class="stat-value">{totalTests}</span>
+          <div className="stat-info">
+            <span className="stat-value">{totalTests}</span>
             <span class="stat-label">Total Tests Logged</span>
           </div>
         </div>
 
-        <div class="glass-card stat-card">
-          <div class="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
             <Award size={22} />
           </div>
-          <div class="stat-info">
-            <span class="stat-value">{avgMarks}</span>
+          <div className="stat-info">
+            <span className="stat-value">{avgMarks}</span>
             <span class="stat-label">Overall Average Score</span>
           </div>
         </div>
 
-        <div class="glass-card stat-card">
-          <div class="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
             <CheckCircle size={22} />
           </div>
-          <div class="stat-info">
-            <span class="stat-value">{avgAccuracy}%</span>
+          <div className="stat-info">
+            <span className="stat-value">{avgAccuracy}%</span>
             <span class="stat-label">Overall Avg Accuracy</span>
           </div>
         </div>
 
-        <div class="glass-card stat-card">
-          <div class="stat-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
             <Clock size={22} />
           </div>
-          <div class="stat-info">
-            <span class="stat-value">{attemptRate}%</span>
+          <div className="stat-info">
+            <span className="stat-value">{attemptRate}%</span>
             <span class="stat-label">Overall Attempt Rate</span>
           </div>
         </div>
       </div>
 
       {/* Analytics Charts Grid */}
-      <div class="charts-grid">
+      <div className="charts-grid">
         {isGeneral ? (
           <>
             {/* Category Comparison Bar Chart */}
-            <div class="glass-card">
-              <div class="chart-header">
-                <div class="chart-title">
+            <div className="glass-card">
+              <div className="chart-header">
+                <div className="chart-title">
                   <h3>Category Performance Comparison</h3>
                   <p>Comparing scores and accuracy across different classes / folders</p>
                 </div>
@@ -231,9 +231,9 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
             </div>
 
             {/* Overall Progression Timeline (General Dashboard) */}
-            <div class="glass-card">
-              <div class="chart-header">
-                <div class="chart-title">
+            <div className="glass-card">
+              <div className="chart-header">
+                <div className="chart-title">
                   <h3>Overall Study Progression</h3>
                   <p>General timeline of test scores over time</p>
                 </div>
@@ -273,9 +273,9 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
           </>
         ) : (
           /* Scoped Category Chart */
-          <div class="glass-card" style={{ gridColumn: 'span 2' }}>
-            <div class="chart-header">
-              <div class="chart-title">
+          <div className="glass-card" style={{ gridColumn: 'span 2' }}>
+            <div className="chart-header">
+              <div className="chart-title">
                 <h3>Performance Progression</h3>
                 <p>Graph showing marks yearwise / test-by-test</p>
               </div>

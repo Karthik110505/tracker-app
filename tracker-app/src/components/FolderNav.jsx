@@ -27,24 +27,24 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
   };
 
   return (
-    <div class="folder-nav">
+    <div className="folder-nav">
       {/* Permanent General Dashboard Tab */}
       <div 
         onClick={() => onSelectFolder(null)}
-        class={`folder-item ${activeFolderId === null ? 'active' : ''}`}
+        className={`folder-item ${activeFolderId === null ? 'active' : ''}`}
         style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-card)', borderRadius: '8px', paddingBottom: '12px' }}
       >
-        <div class="folder-left">
+        <div className="folder-left">
           <LayoutDashboard size={16} />
           <span style={{ fontWeight: '600' }}>General Dashboard</span>
         </div>
       </div>
 
-      <div class="folder-nav-header">
+      <div className="folder-nav-header">
         <h3>Categories</h3>
         <button 
           onClick={() => setIsAdding(!isAdding)} 
-          class="btn-add-folder"
+          className="btn-add-folder"
           title="Add New Category"
         >
           {isAdding ? <X size={16} /> : <Plus size={16} />}
@@ -61,12 +61,12 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
               onChange={(e) => setNewFolderName(e.target.value)}
               onKeyDown={handleKeyDown}
               autoFocus
-              class="form-input"
+              className="form-input"
               style={{ padding: '6px 10px', fontSize: '13px' }}
             />
             <button 
               type="submit" 
-              class="btn btn-primary" 
+              className="btn btn-primary" 
               style={{ padding: '6px 10px' }}
             >
               <Check size={14} />
@@ -82,9 +82,9 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
             <div 
               key={folder.id}
               onClick={() => onSelectFolder(folder.id)}
-              class={`folder-item ${isActive ? 'active' : ''}`}
+              className={`folder-item ${isActive ? 'active' : ''}`}
             >
-              <div class="folder-left">
+              <div className="folder-left">
                 {isActive ? <FolderOpen size={16} /> : <Folder size={16} />}
                 <span>{folder.name}</span>
               </div>
@@ -96,7 +96,7 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
                     onDeleteFolder(folder.id);
                   }
                 }}
-                class="folder-delete-btn"
+                className="folder-delete-btn"
                 title="Delete Folder"
               >
                 <Trash2 size={14} />
