@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { parseOfflineHtml } from '../utils/htmlParser';
 
 export default function TestLoggerModal({ folderId, folders, onClose, onSave }) {
@@ -165,21 +165,21 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
   };
 
   return (
-    <div class="modal-overlay" onClick={onClose}>
-      <div class="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div class="modal-header">
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
           <h2>Log Exam Results</h2>
-          <button onClick={onClose} class="btn-close-modal">
+          <button onClick={onClose} className="btn-close-modal">
             <X size={18} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div class="modal-body">
+          <div className="modal-body">
             
             {/* Drag & Drop File Upload */}
             <div 
-              class={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
+              className={`file-upload-zone ${dragActive ? 'drag-active' : ''}`}
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
               onDragLeave={handleDrag}
@@ -193,42 +193,42 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
               />
-              <UploadCloud class="upload-icon" />
-              <div class="upload-text">Upload Offline HTML file</div>
-              <div class="upload-subtext">Drag & drop your saved result HTML file or click to browse</div>
+              <UploadCloud className="upload-icon" />
+              <div className="upload-text">Upload Offline HTML file</div>
+              <div className="upload-subtext">Drag & drop your saved result HTML file or click to browse</div>
             </div>
 
             {/* Upload Status Banner */}
             {uploadStatus.type === 'error' && (
-              <div class="subfolder-warning" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div className="subfolder-warning" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{uploadStatus.message}</span>
               </div>
             )}
             {uploadStatus.type === 'success' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: 'var(--color-success)', padding: '8px 10px', borderRadius: '6px', fontSize: '12px' }}>
-                <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                <CheckCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{uploadStatus.message}</span>
               </div>
             )}
             {uploadStatus.type === 'loading' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                <div class="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div>
+                <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div>
                 <span>{uploadStatus.message}</span>
               </div>
             )}
 
             {/* Form Fields */}
-            <div class="form-grid">
+            <div className="form-grid">
               
               {/* Category selector */}
-              <div class="form-group form-group-full">
+              <div className="form-group form-group-full">
                 <label>Category / Folder *</label>
                 <select
                   name="folderId"
                   value={formData.folderId}
                   onChange={handleInputChange}
-                  class="form-input"
+                  className="form-input"
                   required
                 >
                   <option value="" disabled>-- Select a Category --</option>
@@ -238,7 +238,7 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                 </select>
               </div>
 
-              <div class="form-group form-group-full">
+              <div className="form-group form-group-full">
                 <label>Exam Title *</label>
                 <input
                   type="text"
@@ -246,19 +246,19 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.title}
                   onChange={handleInputChange}
                   placeholder="e.g. GATE CSE 2010 | Original Paper"
-                  class="form-input"
+                  className="form-input"
                   required
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Date Attempted</label>
                 <input
                   type="date"
                   name="date"
                   value={formData.date}
                   onChange={handleInputChange}
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
@@ -269,11 +269,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   name="duration"
                   value={formData.duration}
                   onChange={handleInputChange}
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Resultant Marks</label>
                 <input
                   type="number"
@@ -282,22 +282,22 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.marks}
                   onChange={handleInputChange}
                   placeholder="e.g. 45.33"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Total Exam Marks</label>
                 <input
                   type="number"
                   name="totalMarks"
                   value={formData.totalMarks}
                   onChange={handleInputChange}
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Attempted Questions</label>
                 <input
                   type="number"
@@ -305,22 +305,22 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.attempted}
                   onChange={handleInputChange}
                   placeholder="e.g. 23"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Total Questions</label>
                 <input
                   type="number"
                   name="totalQs"
                   value={formData.totalQs}
                   onChange={handleInputChange}
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Correct Attempts</label>
                 <input
                   type="number"
@@ -328,11 +328,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.correct}
                   onChange={handleInputChange}
                   placeholder="e.g. 15"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Incorrect Attempts</label>
                 <input
                   type="number"
@@ -340,11 +340,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.incorrect}
                   onChange={handleInputChange}
                   placeholder="e.g. 8"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Time Taken (e.g. 120 Min)</label>
                 <input
                   type="text"
@@ -352,11 +352,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.timeTaken}
                   onChange={handleInputChange}
                   placeholder="e.g. 120 Min"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group">
+              <div className="form-group">
                 <label>Subject / Topic Tags (comma-separated)</label>
                 <input
                   type="text"
@@ -364,27 +364,27 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
                   value={formData.tags}
                   onChange={handleInputChange}
                   placeholder="e.g. OS, Subnetting, Dijkstra"
-                  class="form-input"
+                  className="form-input"
                 />
               </div>
 
-              <div class="form-group form-group-full">
+              <div className="form-group form-group-full">
                 <label>Performance Notes / Revision Strategy</label>
                 <textarea
                   name="notes"
                   value={formData.notes}
                   onChange={handleInputChange}
                   placeholder="What went wrong? Which topics need revision? (e.g., Struggled with subnetting, need to revise Dijkstra)"
-                  class="form-textarea"
+                  className="form-textarea"
                 />
               </div>
             </div>
 
           </div>
 
-          <div class="modal-footer">
-            <button type="button" onClick={onClose} class="btn btn-secondary">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save Test Record</button>
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Save Test Record</button>
           </div>
         </form>
       </div>
