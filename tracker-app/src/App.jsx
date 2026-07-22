@@ -22,9 +22,10 @@ export default function App() {
   // activeFolderId starts as null (General Dashboard)
   const [activeFolderId, setActiveFolderId] = useState(null);
   
-  // UI states
-  const [isLoggerOpen, setIsLoggerOpen] = useState(false);
+  // View states: 'dashboard', 'logger'
+  const [currentView, setCurrentView] = useState('dashboard');
   const [selectedPaper, setSelectedPaper] = useState(null);
+  
   const fileInputRef = useRef(null);
 
   // Global error listener to alert users to exact JavaScript console errors
@@ -60,6 +61,7 @@ export default function App() {
       setFolders(prev => [...prev, folder]);
       setActiveFolderId(folder.id);
       setSelectedPaper(null); // Clear paper viewer
+      setCurrentView('dashboard');
     } catch (e) {
       alert('Failed to create folder: ' + e.message);
     }
@@ -72,6 +74,7 @@ export default function App() {
       setTests(prev => prev.filter(t => t.folderId !== folderId));
       setActiveFolderId(null);
       setSelectedPaper(null);
+      setCurrentView('dashboard');
     } catch (e) {
       alert('Failed to delete folder: ' + e.message);
     }
@@ -89,7 +92,7 @@ export default function App() {
           return [...prev, testRecord];
         }
       });
-      setIsLoggerOpen(false);
+      setCurrentView('dashboard');
     } catch (e) {
       alert('Failed to save test record: ' + e.message);
     }
@@ -141,6 +144,7 @@ export default function App() {
         setTests(t);
         setActiveFolderId(null); // Return to General Dashboard
         setSelectedPaper(null);
+        setCurrentView('dashboard');
       } catch (err) {
         alert('Restore failed. Invalid backup file: ' + err.message);
       }
@@ -154,6 +158,7 @@ export default function App() {
       localStorage.removeItem('gate_tracker_auth');
       setIsLoggedIn(false);
       setSelectedPaper(null);
+      setCurrentView('dashboard');
     }
   };
 
@@ -194,6 +199,7 @@ export default function App() {
           onSelectFolder={(id) => {
             setActiveFolderId(id);
             setSelectedPaper(null); // Close paper viewer
+            setCurrentView('dashboard'); // Return to dashboard view
           }}
           onCreateFolder={handleCreateFolder}
           onDeleteFolder={handleDeleteFolder}
@@ -238,12 +244,19 @@ export default function App() {
       {/* Main Workspace Pane */}
       <main className="main-content">
         
-        {/* If viewing a selected paper, load the iframe frame */}
+        {/* View Switcher Routing */}
         {selectedPaper ? (
           <PaperViewer
             title={selectedPaper.title}
             paperHtml={selectedPaper.paperHtml}
             onClose={() => setSelectedPaper(null)}
+          />
+        ) : currentView === 'logger' ? (
+          <TestLoggerModal
+            folderId={isGeneral ? null : activeFolderId}
+            folders={folders}
+            onClose={() => setCurrentView('dashboard')}
+            onSave={handleSaveTest}
           />
         ) : (
           <>
@@ -260,7 +273,7 @@ export default function App() {
                 {/* Allow logging a test from anywhere, as long as at least one folder exists */}
                 {folders.length > 0 && (
                   <button 
-                    onClick={() => setIsLoggerOpen(true)} 
+                    onClick={() => setCurrentView('logger')} 
                     className="btn btn-primary"
                   >
                     <Plus size={16} />
@@ -367,7 +380,7 @@ export default function App() {
                   <p style={{ fontSize: '14px' }}>No test results logged yet.</p>
                   {folders.length > 0 && (
                     <button 
-                      onClick={() => setIsLoggerOpen(true)} 
+                      onClick={() => setCurrentView('logger')} 
                       className="btn btn-secondary" 
                       style={{ marginTop: '12px', fontSize: '13px' }}
                     >
@@ -380,16 +393,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      {/* Renders the modal sheet to upload HTML or input values */}
-      {isLoggerOpen && (
-        <TestLoggerModal
-          folderId={isGeneral ? null : activeFolderId}
-          folders={folders}
-          onClose={() => setIsLoggerOpen(false)}
-          onSave={handleSaveTest}
-        />
-      )}
 
     </div>
   );
