@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FolderPlus, Plus, Upload, Download, Trash2, 
   Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut,
-  Menu, X
+  Menu, X, Edit2
 } from 'lucide-react';
 import { dbService } from './db';
 import FolderNav from './components/FolderNav';
@@ -28,6 +28,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [selectedAnalysisTest, setSelectedAnalysisTest] = useState(null);
+  const [editingTest, setEditingTest] = useState(null);
   
   // Mobile UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -320,13 +321,24 @@ export default function App() {
           <TestAnalysis
             test={selectedAnalysisTest}
             onClose={() => setSelectedAnalysisTest(null)}
+            onSaveNotes={async (updatedTest) => {
+              await handleSaveTest(updatedTest);
+              setSelectedAnalysisTest(updatedTest);
+            }}
           />
         ) : currentView === 'logger' ? (
           <TestLoggerModal
             folderId={isGeneral ? null : activeFolderId}
             folders={folders}
-            onClose={() => setCurrentView('dashboard')}
-            onSave={handleSaveTest}
+            editTest={editingTest}
+            onClose={() => {
+              setCurrentView('dashboard');
+              setEditingTest(null);
+            }}
+            onSave={(record) => {
+              handleSaveTest(record);
+              setEditingTest(null);
+            }}
           />
         ) : (
           <>
@@ -444,6 +456,14 @@ export default function App() {
                                   </span>
                                 </>
                               )}
+                              <button 
+                                onClick={() => { setEditingTest(test); setCurrentView('logger'); }} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '6px', borderRadius: '6px' }}
+                                title="Edit Test Result"
+                              >
+                                <Edit2 size={14} />
+                              </button>
                               <button 
                                 onClick={() => handleDeleteTest(test.id)} 
                                 className="btn btn-danger" 

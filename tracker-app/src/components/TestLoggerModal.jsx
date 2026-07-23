@@ -2,29 +2,29 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { parseOfflineHtml } from '../utils/htmlParser';
 
-export default function TestLoggerModal({ folderId, folders, onClose, onSave }) {
+export default function TestLoggerModal({ folderId, folders, onClose, onSave, editTest }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({ type: '', message: '' });
   const fileInputRef = useRef(null);
 
   // Form Fields State
   const [formData, setFormData] = useState({
-    folderId: folderId || (folders.length > 0 ? folders[0].id : ''),
-    title: '',
-    date: new Date().toISOString().split('T')[0],
-    marks: '',
-    totalMarks: '100',
-    attempted: '',
-    totalQs: '65',
-    correct: '',
-    incorrect: '',
-    notAttempted: '',
-    duration: '180 Min',
-    timeTaken: '',
-    accuracy: '',
-    notes: '',
-    tags: '',
-    paperHtml: '' // Raw HTML of the uploaded paper
+    folderId: editTest ? editTest.folderId : (folderId || (folders.length > 0 ? folders[0].id : '')),
+    title: editTest ? editTest.title : '',
+    date: editTest ? editTest.date : new Date().toISOString().split('T')[0],
+    marks: editTest ? editTest.marks.toString() : '',
+    totalMarks: editTest ? editTest.totalMarks.toString() : '100',
+    attempted: editTest ? editTest.attempted.toString() : '',
+    totalQs: editTest ? editTest.totalQs.toString() : '65',
+    correct: editTest ? editTest.correct.toString() : '',
+    incorrect: editTest ? editTest.incorrect.toString() : '',
+    notAttempted: editTest ? editTest.notAttempted.toString() : '',
+    duration: editTest ? editTest.duration : '180 Min',
+    timeTaken: editTest ? editTest.timeTaken : '',
+    accuracy: editTest ? editTest.accuracy : '',
+    notes: editTest ? editTest.notes : '',
+    tags: editTest && editTest.tags ? editTest.tags.join(', ') : '',
+    paperHtml: editTest ? editTest.paperHtml : ''
   });
 
   const handleDrag = (e) => {
@@ -142,7 +142,7 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
     }
 
     const testRecord = {
-      id: Date.now().toString(),
+      id: editTest ? editTest.id : Date.now().toString(),
       folderId: formData.folderId,
       title: formData.title.trim(),
       date: formData.date,
@@ -168,9 +168,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
     <div className="glass-card" style={{ padding: '32px', animation: 'slideUp 0.3s ease-out' }}>
       <div className="paper-viewer-header" style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-card)', paddingBottom: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: '700' }}>Log Exam Results</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: '700' }}>
+            {editTest ? 'Edit Exam Results' : 'Log Exam Results'}
+          </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-            Upload your offline HTML paper or fill out your performance details manually
+            {editTest ? 'Modify your performance metrics, notes, or tags for this exam' : 'Upload your offline HTML paper or fill out your performance details manually'}
           </p>
         </div>
         <button 
@@ -392,7 +394,9 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave }) 
 
         <div className="modal-footer" style={{ borderTop: '1px solid var(--border-card)', paddingTop: '20px', marginTop: '20px' }}>
           <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-          <button type="submit" className="btn btn-primary">Save Test Record</button>
+          <button type="submit" className="btn btn-primary">
+            {editTest ? 'Save Changes' : 'Save Test Record'}
+          </button>
         </div>
       </form>
     </div>

@@ -1,13 +1,42 @@
-import React, { useMemo } from 'react';
-import { ArrowLeft, CheckCircle, XCircle, HelpCircle, Award, Target, Percent, Trash2 } from 'lucide-react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle, Award, Target, Percent, FileText } from 'lucide-react';
 import { calculateExamDetails } from '../utils/htmlParser';
 
-export default function TestAnalysis({ test, onClose }) {
+export default function TestAnalysis({ test, onClose, onSaveNotes }) {
   // Compute exam details from HTML
   const analysis = useMemo(() => {
     if (!test || !test.paperHtml) return null;
     return calculateExamDetails(test.paperHtml);
   }, [test]);
+
+  const [notesText, setNotesText] = useState(test.notes || '');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+
+  // Sync state if the test prop changes
+  useEffect(() => {
+    setNotesText(test.notes || '');
+    setSaveStatus('');
+  }, [test]);
+
+  const handleSaveNotes = async () => {
+    setIsSavingNotes(true);
+    setSaveStatus('');
+    try {
+      const updatedTest = {
+        ...test,
+        notes: notesText
+      };
+      await onSaveNotes(updatedTest);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (e) {
+      alert("Failed to save notes: " + e.message);
+      setSaveStatus('error');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
 
   if (!analysis || !analysis.success) {
     return (
@@ -117,6 +146,46 @@ export default function TestAnalysis({ test, onClose }) {
             <div style={{ color: 'var(--text-dark)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>0.00 Marks</div>
           </div>
 
+        </div>
+      </div>
+
+      {/* Performance Notes / Exam Review Card */}
+      <div className="glass-card" style={{ padding: '24px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <FileText size={18} style={{ color: 'var(--color-primary)' }} />
+          <span>Exam Review & Learnings (Points to Remember)</span>
+        </h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '12px' }}>
+          Write down what went wrong, conceptual mistakes you made, and what you need to revise for this mock test.
+        </p>
+        <textarea
+          value={notesText}
+          onChange={(e) => setNotesText(e.target.value)}
+          placeholder="e.g. Silly calculation mistake in Q#7. Need to revise Dijkstra algorithm for Q#34."
+          className="form-textarea"
+          style={{ width: '100%', minHeight: '100px', marginBottom: '12px', boxSizing: 'border-box' }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            {saveStatus === 'success' && (
+              <span style={{ color: 'var(--color-success)', fontSize: '12px', fontWeight: '600' }}>
+                ✓ Learnings saved successfully!
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span style={{ color: 'var(--color-danger)', fontSize: '12px', fontWeight: '600' }}>
+                ✗ Failed to save learnings.
+              </span>
+            )}
+          </div>
+          <button 
+            onClick={handleSaveNotes} 
+            className="btn btn-primary" 
+            style={{ padding: '8px 16px', fontSize: '12px' }}
+            disabled={isSavingNotes}
+          >
+            {isSavingNotes ? 'Saving...' : 'Save Learnings & Review'}
+          </button>
         </div>
       </div>
 
