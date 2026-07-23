@@ -919,4 +919,17 @@ body {
   }
 }
 
-
+@media (min-width: 769px) {
+  .app-layout {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .sidebar {
+    height: 100%;
+    overflow-y: auto;
+  }
+  .main-content {
+    height: 100%;
+    overflow-y: auto;
+  }
+}
