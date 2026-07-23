@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   FolderPlus, Plus, Upload, Download, Trash2, 
-  Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut 
+  Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut,
+  Menu, X
 } from 'lucide-react';
 import { dbService } from './db';
 import FolderNav from './components/FolderNav';
@@ -9,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import TestLoggerModal from './components/TestLoggerModal';
 import PaperViewer from './components/PaperViewer';
 import Login from './components/Login';
+import TestAnalysis from './components/TestAnalysis';
 
 export default function App() {
   // Check if session token exists in local storage
@@ -25,6 +27,12 @@ export default function App() {
   // View states: 'dashboard', 'logger'
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedPaper, setSelectedPaper] = useState(null);
+  const [selectedAnalysisTest, setSelectedAnalysisTest] = useState(null);
+  
+  // Mobile UI state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showTextBackup, setShowTextBackup] = useState(false);
+  const [backupText, setBackupText] = useState('');
   
   const fileInputRef = useRef(null);
 
@@ -162,6 +170,41 @@ export default function App() {
     }
   };
 
+  const handleOpenTextBackup = async () => {
+    try {
+      const dataStr = await dbService.exportDatabase();
+      setBackupText(dataStr);
+      setShowTextBackup(true);
+    } catch (e) {
+      alert('Failed to generate text backup: ' + e.message);
+    }
+  };
+
+  const handleImportTextBackup = async () => {
+    if (!backupText.trim()) return;
+    try {
+      await dbService.importDatabase(backupText);
+      alert('Database restored successfully from text backup!');
+      
+      // Reload states
+      const f = await dbService.getFolders();
+      const t = await dbService.getAllTests();
+      setFolders(f);
+      setTests(t);
+      setActiveFolderId(null); // Return to General Dashboard
+      setSelectedPaper(null);
+      setCurrentView('dashboard');
+      setShowTextBackup(false);
+    } catch (err) {
+      alert('Restore failed. Invalid JSON text: ' + err.message);
+    }
+  };
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(backupText);
+    alert('Backup JSON copied to clipboard!');
+  };
+
   // If not logged in, render the login card
   if (!isLoggedIn) {
     return <Login onLogin={() => setIsLoggedIn(true)} />;
@@ -183,13 +226,18 @@ export default function App() {
     <div className="app-layout">
       
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="logo-section">
-          <div className="logo-icon">⚡</div>
-          <div className="logo-text">
-            <h2>GATE Tracker</h2>
-            <span>GATE 2027 Revision Tracker</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="logo-icon">⚡</div>
+            <div className="logo-text">
+              <h2>GATE Tracker</h2>
+              <span>GATE 2027 Revision Tracker</span>
+            </div>
           </div>
+          <button className="mobile-close-btn" onClick={() => setIsSidebarOpen(false)} style={{ display: 'none' }}>
+            <X size={20} />
+          </button>
         </div>
 
         {/* Foldernav component */}
@@ -200,6 +248,7 @@ export default function App() {
             setActiveFolderId(id);
             setSelectedPaper(null); // Close paper viewer
             setCurrentView('dashboard'); // Return to dashboard view
+            setIsSidebarOpen(false); // Close sidebar on mobile
           }}
           onCreateFolder={handleCreateFolder}
           onDeleteFolder={handleDeleteFolder}
@@ -231,6 +280,14 @@ export default function App() {
             <span>Import Backup</span>
           </button>
           <button 
+            onClick={handleOpenTextBackup} 
+            className="btn btn-secondary" 
+            style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
+          >
+            <FileText size={14} />
+            <span>Text Backup/Restore</span>
+          </button>
+          <button 
             onClick={handleLogout} 
             className="btn btn-danger" 
             style={{ width: '100%', fontSize: '12px', padding: '8px 12px', marginTop: '4px' }}
@@ -244,12 +301,25 @@ export default function App() {
       {/* Main Workspace Pane */}
       <main className="main-content">
         
+        {/* Mobile Header Bar */}
+        <div className="mobile-header">
+          <button className="mobile-menu-btn" onClick={() => setIsSidebarOpen(true)}>
+            <Menu size={24} />
+          </button>
+          <div className="mobile-title">GATE Tracker</div>
+        </div>
+        
         {/* View Switcher Routing */}
         {selectedPaper ? (
           <PaperViewer
             title={selectedPaper.title}
             paperHtml={selectedPaper.paperHtml}
             onClose={() => setSelectedPaper(null)}
+          />
+        ) : selectedAnalysisTest ? (
+          <TestAnalysis
+            test={selectedAnalysisTest}
+            onClose={() => setSelectedAnalysisTest(null)}
           />
         ) : currentView === 'logger' ? (
           <TestLoggerModal
@@ -344,20 +414,35 @@ export default function App() {
                             </div>
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '8px' }}>
+                            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
                               {test.paperHtml ? (
-                                <button 
-                                  onClick={() => setSelectedPaper(test)} 
-                                  className="btn btn-secondary" 
-                                  style={{ padding: '6px', borderRadius: '6px' }}
-                                  title="View Embedded Paper"
-                                >
-                                  <Eye size={14} />
-                                </button>
+                                <>
+                                  <button 
+                                    onClick={() => setSelectedAnalysisTest(test)} 
+                                    className="btn btn-primary" 
+                                    style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '6px', whiteSpace: 'nowrap' }}
+                                    title="See Results Breakdown"
+                                  >
+                                    See Results
+                                  </button>
+                                  <button 
+                                    onClick={() => setSelectedPaper(test)} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '6px', borderRadius: '6px' }}
+                                    title="View Embedded Paper"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+                                </>
                               ) : (
-                                <span className="btn btn-secondary" style={{ padding: '6px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed' }} title="No paper HTML logged">
-                                  <Eye size={14} />
-                                </span>
+                                <>
+                                  <span className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed', whiteSpace: 'nowrap' }}>
+                                    See Results
+                                  </span>
+                                  <span className="btn btn-secondary" style={{ padding: '6px', borderRadius: '6px', opacity: 0.3, cursor: 'not-allowed' }}>
+                                    <Eye size={14} />
+                                  </span>
+                                </>
                               )}
                               <button 
                                 onClick={() => handleDeleteTest(test.id)} 
@@ -393,6 +478,53 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Sidebar Backdrop Overlay */}
+      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)}></div>}
+
+      {/* Text Backup / Restore Modal */}
+      {showTextBackup && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Text Backup / Restore</h2>
+              <button className="btn-close-modal" onClick={() => setShowTextBackup(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                Copy the text below to save a backup, or paste your backup text and click "Import / Restore" to restore your data.
+              </p>
+              <textarea
+                style={{
+                  width: '100%',
+                  height: '160px',
+                  background: '#070913',
+                  border: '1px solid var(--border-card)',
+                  borderRadius: '8px',
+                  color: 'var(--text-main)',
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  padding: '10px',
+                  resize: 'none'
+                }}
+                value={backupText}
+                onChange={(e) => setBackupText(e.target.value)}
+                placeholder="Paste backup JSON data here..."
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button onClick={handleCopyToClipboard} className="btn btn-secondary" style={{ fontSize: '12px', padding: '8px 12px' }}>
+                  Copy to Clipboard
+                </button>
+                <button onClick={handleImportTextBackup} className="btn btn-primary" style={{ fontSize: '12px', padding: '8px 12px' }}>
+                  Import / Restore
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -106,7 +106,7 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
       {/* Top Section: Welcome & Countdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <div className="welcome-countdown-grid">
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '6px' }}>
             {isGeneral ? 'General Revision Tracker' : 'GATE 2027 Dashboard'}
@@ -273,7 +273,7 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
           </>
         ) : (
           /* Scoped Category Chart */
-          <div className="glass-card" style={{ gridColumn: 'span 2' }}>
+          <div className="glass-card full-width-chart-card">
             <div className="chart-header">
               <div className="chart-title">
                 <h3>Performance Progression</h3>
