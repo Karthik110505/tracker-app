@@ -1,123 +1,6 @@
 // HTML Parser utility to parse offline-compiled exam result files
 // Extracts titles, marks, and other stats from Netlify offline HTML files
 
-export function parseOfflineHtml(htmlText) {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, 'text/html');
-    
-    // Extract title (e.g. "GATE CSE 2010 | Original Paper")
-    let title = doc.title || 'Unknown Exam';
-    title = title.replace('_Offline', '').replace(/_/g, ' ').trim();
-    
-    // Sometimes the title has the extension or trailing parts, let's clean it
-    if (title.endsWith('.html')) {
-      title = title.substring(0, title.length - 5);
-    }
-    
-    // Helper to find leaf elements containing text and match them
-    const extractVal = (label) => {
-      // Find all elements in the document
-      const elements = Array.from(doc.querySelectorAll('*'));
-      
-      for (const el of elements) {
-        // Look for leaf elements that contain the label
-        if (el.children.length === 0 && el.textContent.includes(label)) {
-          const text = el.textContent.trim();
-          
-          // Case 1: Label and value are together in the text, e.g. "Qs. Attempted: 24 / 65"
-          const escapedLabel = label.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(escapedLabel + '\\s*(.*)', 'i');
-          const match = text.match(regex);
-          if (match && match[1].trim()) {
-            return match[1].trim();
-          }
-          
-          // Case 2: Value is in the parent container's full text
-          if (el.parentElement) {
-            const parentText = el.parentElement.textContent.trim();
-            const parentMatch = parentText.match(regex);
-            if (parentMatch && parentMatch[1].trim()) {
-              return parentMatch[1].trim();
-            }
-          }
-          
-          // Case 3: Value is in the next sibling element
-          if (el.nextElementSibling) {
-            return el.nextElementSibling.textContent.trim();
-          }
-        }
-      }
-      return '';
-    };
-
-    // Extract metrics raw strings
-    const attemptedRaw = extractVal('Qs. Attempted:');
-    const marksRaw = extractVal('Resultant Marks:');
-    const durationRaw = extractVal('Exam Duration:');
-    const correctRaw = extractVal('Correct Attempts:');
-    const incorrectRaw = extractVal('Incorrect Attempts:');
-    const notAttemptedRaw = extractVal('Not Attempted:');
-    const timeTakenRaw = extractVal('Time Taken:');
-    const accuracyRaw = extractVal('Accuracy:');
-    const percentageRaw = extractVal('Percentage:');
-
-    // Parse Attempted and Total Questions (e.g. "12 / 65")
-    let attempted = 0;
-    let totalQs = 65;
-    if (attemptedRaw) {
-      const parts = attemptedRaw.split('/');
-      attempted = parseInt(parts[0]) || 0;
-      totalQs = parseInt(parts[1]) || 65;
-    }
-
-    // Parse Marks (e.g. "45.33 / 100")
-    let marks = 0;
-    let totalMarks = 100;
-    if (marksRaw) {
-      const parts = marksRaw.split('/');
-      marks = parseFloat(parts[0]) || 0;
-      totalMarks = parseFloat(parts[1]) || 100;
-    }
-
-    // Parse Time Taken (e.g. "120 Min" or "2.05 Min")
-    let timeTaken = timeTakenRaw || '';
-    
-    // Clean up percentages/accuracy
-    let accuracy = accuracyRaw || '';
-    if (accuracy && !accuracy.includes('%')) {
-      accuracy += '%';
-    }
-
-    let percentage = percentageRaw || '';
-    if (percentage && !percentage.includes('%')) {
-      percentage += '%';
-    }
-
-    return {
-      success: true,
-      title: title || 'GATE Exam Paper',
-      attempted,
-      totalQs,
-      marks,
-      totalMarks,
-      correct: parseInt(correctRaw) || 0,
-      incorrect: parseInt(incorrectRaw) || 0,
-      notAttempted: parseInt(notAttemptedRaw) || 0,
-      duration: durationRaw || '180 Min',
-      timeTaken: timeTaken || '0.00 Min',
-      accuracy: accuracy || '0%',
-      percentage: percentage || '0.00%'
-    };
-  } catch (error) {
-    console.error('Error parsing offline HTML:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to parse file content.'
-    };
-  }
-}
-
 export function calculateExamDetails(htmlText) {
   try {
     const parser = new DOMParser();
@@ -259,11 +142,13 @@ export function calculateExamDetails(htmlText) {
     const finalScore = parseFloat((totalAwarded - totalPenalty).toFixed(2));
     const accuracy = attempted > 0 ? Math.round((correct / attempted) * 100) : 0;
     const attemptRate = questionElements.length > 0 ? Math.round((attempted / questionElements.length) * 100) : 0;
+    const totalMarks = questions.reduce((sum, q) => sum + q.award, 0);
     
     return {
       success: true,
       summary: {
         totalQuestions: questionElements.length,
+        totalMarks,
         attempted,
         correct,
         incorrect,
@@ -281,6 +166,138 @@ export function calculateExamDetails(htmlText) {
     return {
       success: false,
       error: error.message || "Failed to calculate details."
+    };
+  }
+}
+
+export function parseOfflineHtml(htmlText) {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, 'text/html');
+    
+    // Extract title (e.g. "GATE CSE 2010 | Original Paper")
+    let title = doc.title || 'Unknown Exam';
+    title = title.replace('_Offline', '').replace(/_/g, ' ').trim();
+    if (title.endsWith('.html')) {
+      title = title.substring(0, title.length - 5);
+    }
+    
+    // Check if we can parse the question elements
+    const questionElements = doc.querySelectorAll('.res_question');
+    if (questionElements.length > 0) {
+      // We have question containers! Perform the exact calculation!
+      const calcResult = calculateExamDetails(htmlText);
+      if (calcResult.success) {
+        const { summary } = calcResult;
+        
+        // Find exam duration & time taken metadata
+        const extractVal = (label) => {
+          const elements = Array.from(doc.querySelectorAll('*'));
+          for (const el of elements) {
+            if (el.children.length === 0 && el.textContent.includes(label)) {
+              const text = el.textContent.trim();
+              const escapedLabel = label.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+              const regex = new RegExp(escapedLabel + '\\s*(.*)', 'i');
+              const match = text.match(regex);
+              if (match && match[1].trim()) return match[1].trim();
+              if (el.parentElement) {
+                const parentText = el.parentElement.textContent.trim();
+                const parentMatch = parentText.match(regex);
+                if (parentMatch && parentMatch[1].trim()) return parentMatch[1].trim();
+              }
+              if (el.nextElementSibling) return el.nextElementSibling.textContent.trim();
+            }
+          }
+          return '';
+        };
+
+        const durationRaw = extractVal('Exam Duration:');
+        const timeTakenRaw = extractVal('Time Taken:');
+
+        return {
+          success: true,
+          title: title || 'GATE Exam Paper',
+          attempted: summary.attempted,
+          totalQs: summary.totalQuestions,
+          marks: summary.score,
+          totalMarks: summary.totalMarks || 100,
+          correct: summary.correct,
+          incorrect: summary.incorrect,
+          notAttempted: summary.unattempted,
+          duration: durationRaw || '180 Min',
+          timeTaken: timeTakenRaw || '0.00 Min',
+          accuracy: `${summary.accuracy}%`,
+          percentage: `${((summary.score / (summary.totalMarks || 100)) * 100).toFixed(2)}%`
+        };
+      }
+    }
+    
+    // Fallback: If no question elements, try legacy parsing of headers
+    const extractValLegacy = (label) => {
+      const elements = Array.from(doc.querySelectorAll('*'));
+      for (const el of elements) {
+        if (el.children.length === 0 && el.textContent.includes(label)) {
+          const text = el.textContent.trim();
+          const escapedLabel = label.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(escapedLabel + '\\s*(.*)', 'i');
+          const match = text.match(regex);
+          if (match && match[1].trim()) return match[1].trim();
+          if (el.parentElement) {
+            const parentText = el.parentElement.textContent.trim();
+            const parentMatch = parentText.match(regex);
+            if (parentMatch && parentMatch[1].trim()) return parentMatch[1].trim();
+          }
+          if (el.nextElementSibling) return el.nextElementSibling.textContent.trim();
+        }
+      }
+      return '';
+    };
+
+    const attemptedRaw = extractValLegacy('Qs. Attempted:');
+    const marksRaw = extractValLegacy('Resultant Marks:');
+    const durationRaw = extractValLegacy('Exam Duration:');
+    const correctRaw = extractValLegacy('Correct Attempts:');
+    const incorrectRaw = extractValLegacy('Incorrect Attempts:');
+    const notAttemptedRaw = extractValLegacy('Not Attempted:');
+    const timeTakenRaw = extractValLegacy('Time Taken:');
+    const accuracyRaw = extractValLegacy('Accuracy:');
+
+    let attempted = 0;
+    let totalQs = 65;
+    if (attemptedRaw) {
+      const parts = attemptedRaw.split('/');
+      attempted = parseInt(parts[0]) || 0;
+      totalQs = parseInt(parts[1]) || 65;
+    }
+
+    let marks = 0;
+    let totalMarks = 100;
+    if (marksRaw) {
+      const parts = marksRaw.split('/');
+      marks = parseFloat(parts[0]) || 0;
+      totalMarks = parseFloat(parts[1]) || 100;
+    }
+
+    return {
+      success: true,
+      title: title || 'GATE Exam Paper',
+      attempted,
+      totalQs,
+      marks,
+      totalMarks,
+      correct: parseInt(correctRaw) || 0,
+      incorrect: parseInt(incorrectRaw) || 0,
+      notAttempted: parseInt(notAttemptedRaw) || 0,
+      duration: durationRaw || '180 Min',
+      timeTaken: timeTakenRaw || '0.00 Min',
+      accuracy: accuracyRaw || '0%',
+      percentage: '0.00%'
+    };
+  } catch (error) {
+    console.error('Error parsing offline HTML:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to parse file content.'
     };
   }
 }
