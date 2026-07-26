@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   FolderPlus, Plus, Upload, Download, Trash2, 
   Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut,
-  Menu, X, Edit2
+  Menu, X, Edit2, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { dbService } from './db';
 import FolderNav from './components/FolderNav';
@@ -32,6 +32,8 @@ export default function App() {
   
   // Mobile UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [showTextBackup, setShowTextBackup] = useState(false);
   const [backupText, setBackupText] = useState('');
   
@@ -225,9 +227,27 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {isSidebarCollapsed && (
+        <div 
+          className="sidebar-hover-trigger"
+          onMouseEnter={() => setIsSidebarHovered(true)}
+        />
+      )}
+      {isSidebarCollapsed && (
+        <button 
+          className="sidebar-float-toggle" 
+          onClick={() => setIsSidebarCollapsed(false)}
+          title="Expand Sidebar"
+        >
+          <ChevronRight size={16} />
+        </button>
+      )}
       
       {/* Sidebar Navigation */}
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+      <aside 
+        className={`sidebar ${isSidebarOpen ? 'open' : ''} ${isSidebarCollapsed ? 'collapsed' : ''} ${isSidebarHovered ? 'hover-open' : ''}`}
+        onMouseLeave={() => setIsSidebarHovered(false)}
+      >
         <div className="logo-section">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div className="logo-icon">⚡</div>
@@ -236,6 +256,21 @@ export default function App() {
               <span>GATE 2027 Revision Tracker</span>
             </div>
           </div>
+          <button 
+            className="sidebar-collapse-btn" 
+            onClick={() => {
+              if (isSidebarCollapsed) {
+                setIsSidebarCollapsed(false);
+                setIsSidebarHovered(false);
+              } else {
+                setIsSidebarCollapsed(true);
+              }
+            }}
+            style={{ display: 'flex' }}
+            title={isSidebarCollapsed ? "Lock Sidebar Open" : "Collapse Sidebar"}
+          >
+            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
           <button className="mobile-close-btn" onClick={() => setIsSidebarOpen(false)} style={{ display: 'none' }}>
             <X size={20} />
           </button>
