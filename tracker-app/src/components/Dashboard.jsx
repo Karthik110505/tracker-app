@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, BarChart, Bar, Legend 
 } from 'recharts';
 import { Calendar, Award, CheckCircle, Clock } from 'lucide-react';
+import { calculateExamDetails } from '../utils/htmlParser';
 
 export default function Dashboard({ folderName, tests, folders, isGeneral }) {
   // GATE 2027 Countdown Target: Feb 6, 2027 09:00:00
@@ -60,12 +61,41 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
     const yearMatch = t.title.match(/\b(19|20)\d{2}\b/);
     const shortName = yearMatch ? yearMatch[0] : `T${idx + 1}`;
     
+    let penalty = 0;
+    let awardedMarks = 0;
+    
+    if (t.paperHtml) {
+      const details = calculateExamDetails(t.paperHtml);
+      if (details && details.success) {
+        penalty = details.summary.penaltyMarks;
+        awardedMarks = details.summary.awardedMarks;
+      }
+    }
+    
+    if (penalty === 0 && awardedMarks === 0) {
+      // Fallback approximation for manually logged tests
+      const correctVal = t.correct || 0;
+      const incorrectVal = t.incorrect || 0;
+      const marksVal = t.marks || 0;
+      const denominator = correctVal - (incorrectVal / 3);
+      if (denominator > 0) {
+        const w = marksVal / denominator;
+        awardedMarks = parseFloat((correctVal * w).toFixed(2));
+        penalty = parseFloat((incorrectVal * w / 3).toFixed(2));
+      } else {
+        awardedMarks = marksVal;
+        penalty = 0;
+      }
+    }
+    
     return {
       name: shortName,
       fullTitle: t.title,
       marks: t.marks,
       accuracy: parseInt(t.accuracy) || 0,
-      attempted: t.attempted
+      attempted: t.attempted,
+      awardedMarks,
+      penalty
     };
   });
 
@@ -247,6 +277,22 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
                           <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.4}/>
                           <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0.0}/>
                         </linearGradient>
+                        <linearGradient id="colorOverallAwarded" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0.0}/>
+                        </linearGradient>
+                        <linearGradient id="colorOverallPenalty" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-danger)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--color-danger)" stopOpacity={0.0}/>
+                        </linearGradient>
+                        <linearGradient id="colorOverallAccuracy" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-secondary)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--color-secondary)" stopOpacity={0.0}/>
+                        </linearGradient>
+                        <linearGradient id="colorOverallAttempts" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-warning)" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="var(--color-warning)" stopOpacity={0.0}/>
+                        </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -260,7 +306,12 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
                         }}
                         labelFormatter={(label, payload) => payload && payload[0] ? payload[0].payload.fullTitle : label}
                       />
-                      <Area type="monotone" dataKey="marks" name="Marks" stroke="var(--color-primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorOverallMarks)" />
+                      <Legend verticalAlign="top" height={36} />
+                      <Area type="monotone" dataKey="marks" name="Marks Obtained" stroke="var(--color-primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorOverallMarks)" />
+                      <Area type="monotone" dataKey="awardedMarks" name="Marks Without Penalty" stroke="var(--color-success)" strokeWidth={2} fillOpacity={1} fill="url(#colorOverallAwarded)" />
+                      <Area type="monotone" dataKey="penalty" name="Penalty" stroke="var(--color-danger)" strokeWidth={2} fillOpacity={1} fill="url(#colorOverallPenalty)" />
+                      <Area type="monotone" dataKey="accuracy" name="Accuracy %" stroke="var(--color-secondary)" strokeWidth={1} fillOpacity={1} fill="url(#colorOverallAccuracy)" />
+                      <Area type="monotone" dataKey="attempted" name="Questions Attempted" stroke="var(--color-warning)" strokeWidth={1.5} fillOpacity={1} fill="url(#colorOverallAttempts)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
@@ -294,6 +345,18 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
                         <stop offset="5%" stopColor="var(--color-secondary)" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="var(--color-secondary)" stopOpacity={0.0}/>
                       </linearGradient>
+                      <linearGradient id="colorAwarded" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0.0}/>
+                      </linearGradient>
+                      <linearGradient id="colorPenalty" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-danger)" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="var(--color-danger)" stopOpacity={0.0}/>
+                      </linearGradient>
+                      <linearGradient id="colorAttempts" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-warning)" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="var(--color-warning)" stopOpacity={0.0}/>
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                     <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
@@ -307,8 +370,12 @@ export default function Dashboard({ folderName, tests, folders, isGeneral }) {
                       }}
                       labelFormatter={(label, payload) => payload && payload[0] ? payload[0].payload.fullTitle : label}
                     />
+                    <Legend verticalAlign="top" height={36} />
                     <Area type="monotone" dataKey="marks" name="Marks Obtained" stroke="var(--color-primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorMarks)" />
+                    <Area type="monotone" dataKey="awardedMarks" name="Marks Without Penalty" stroke="var(--color-success)" strokeWidth={2} fillOpacity={1} fill="url(#colorAwarded)" />
+                    <Area type="monotone" dataKey="penalty" name="Penalty" stroke="var(--color-danger)" strokeWidth={2} fillOpacity={1} fill="url(#colorPenalty)" />
                     <Area type="monotone" dataKey="accuracy" name="Accuracy %" stroke="var(--color-secondary)" strokeWidth={1} fillOpacity={1} fill="url(#colorAccuracy)" />
+                    <Area type="monotone" dataKey="attempted" name="Questions Attempted" stroke="var(--color-warning)" strokeWidth={1.5} fillOpacity={1} fill="url(#colorAttempts)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
