@@ -29,6 +29,7 @@ export default function App() {
   const [selectedPaper, setSelectedPaper] = useState(null);
   const [selectedAnalysisTest, setSelectedAnalysisTest] = useState(null);
   const [editingTest, setEditingTest] = useState(null);
+  const [sortField, setSortField] = useState('date');
   
   // Mobile UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -220,6 +221,28 @@ export default function App() {
     ? tests 
     : tests.filter(t => t.folderId === activeFolderId);
 
+  // Sort filtered tests
+  const sortedAndFiltered = React.useMemo(() => {
+    let list = [...filteredTests];
+    list.sort((a, b) => {
+      if (sortField === 'date') {
+        return new Date(b.date) - new Date(a.date);
+      } else if (sortField === 'date-asc') {
+        return new Date(a.date) - new Date(b.date);
+      } else if (sortField === 'marks-desc') {
+        return b.marks - a.marks;
+      } else if (sortField === 'marks-asc') {
+        return a.marks - b.marks;
+      } else if (sortField === 'attempted-desc') {
+        return b.attempted - a.attempted;
+      } else if (sortField === 'attempted-asc') {
+        return a.attempted - b.attempted;
+      }
+      return 0;
+    });
+    return list;
+  }, [filteredTests, sortField]);
+
   const getFolderName = (folderId) => {
     const folder = folders.find(f => f.id === folderId);
     return folder ? folder.name : 'Unknown';
@@ -410,11 +433,30 @@ export default function App() {
 
             {/* Logged Tests Table Grid */}
             <div className="glass-card">
-              <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
-                {isGeneral ? 'All Logged Tests History' : `${activeFolder.name} Test History`}
-              </h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
+                  {isGeneral ? 'All Logged Tests History' : `${activeFolder.name} Test History`}
+                </h3>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Sort by:</span>
+                  <select 
+                    value={sortField} 
+                    onChange={(e) => setSortField(e.target.value)}
+                    className="form-input"
+                    style={{ width: 'auto', padding: '6px 12px', fontSize: '13px', height: '34px', minWidth: '160px' }}
+                  >
+                    <option value="date">Date (Recent First)</option>
+                    <option value="date-asc">Date (Oldest First)</option>
+                    <option value="marks-desc">Marks (Highest First)</option>
+                    <option value="marks-asc">Marks (Lowest First)</option>
+                    <option value="attempted-desc">Attempts (Highest First)</option>
+                    <option value="attempted-asc">Attempts (Lowest First)</option>
+                  </select>
+                </div>
+              </div>
               
-              {filteredTests.length > 0 ? (
+              {sortedAndFiltered.length > 0 ? (
                 <div className="records-table-container">
                   <table className="records-table">
                     <thead>
@@ -431,7 +473,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTests.map((test) => (
+                      {sortedAndFiltered.map((test) => (
                         <tr key={test.id}>
                           {isGeneral && (
                             <td>
