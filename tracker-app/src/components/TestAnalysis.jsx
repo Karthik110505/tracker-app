@@ -147,6 +147,17 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
           </div>
         </div>
 
+        {/* Max Obtainable Marks Card */}
+        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-secondary)' }}>
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
+            <FileText size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value">{activeSummary.totalMarks}</span>
+            <span className="stat-label">Max Obtainable Marks</span>
+          </div>
+        </div>
+
       </div>
 
       {/* Score Breakdown Summary Card */}
