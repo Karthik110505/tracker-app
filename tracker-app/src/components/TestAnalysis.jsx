@@ -53,7 +53,19 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
     );
   }
 
-  const { summary, questions } = analysis;
+  const [selectedSection, setSelectedSection] = useState('all');
+
+  const activeSummary = useMemo(() => {
+    if (selectedSection === 'all') return analysis.summary;
+    const sec = analysis.sections.find(s => s.name === selectedSection);
+    return sec ? sec.summary : analysis.summary;
+  }, [analysis, selectedSection]);
+
+  const activeQuestions = useMemo(() => {
+    if (selectedSection === 'all') return analysis.questions;
+    const sec = analysis.sections.find(s => s.name === selectedSection);
+    return sec ? sec.questions : analysis.questions;
+  }, [analysis, selectedSection]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'slideUp 0.3s ease-out' }}>
@@ -76,6 +88,29 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
         </button>
       </div>
 
+      {/* Section Navigation Tabs */}
+      {analysis.sections && analysis.sections.length > 1 && (
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-card)', paddingBottom: '16px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={() => setSelectedSection('all')}
+            className={`btn ${selectedSection === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '8px' }}
+          >
+            Total Paper
+          </button>
+          {analysis.sections.map((sec, idx) => (
+            <button
+              key={idx}
+              onClick={() => setSelectedSection(sec.name)}
+              className={`btn ${selectedSection === sec.name ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '8px' }}
+            >
+              {sec.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* KPI Metrics Cards Grid */}
       <div className="stats-grid">
         
@@ -85,7 +120,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
             <Award size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-value">{summary.score.toFixed(2)}</span>
+            <span className="stat-value">{activeSummary.score.toFixed(2)}</span>
             <span className="stat-label">Calculated Score</span>
           </div>
         </div>
@@ -96,7 +131,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
             <Percent size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-value">{summary.accuracy}%</span>
+            <span className="stat-value">{activeSummary.accuracy}%</span>
             <span className="stat-label">Accuracy Rate</span>
           </div>
         </div>
@@ -107,8 +142,8 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
             <Target size={22} />
           </div>
           <div className="stat-info">
-            <span className="stat-value">{summary.attemptRate}%</span>
-            <span className="stat-label">Attempt Rate ({summary.attempted}/{summary.totalQuestions})</span>
+            <span className="stat-value">{activeSummary.attemptRate}%</span>
+            <span className="stat-label">Attempt Rate ({activeSummary.attempted}/{activeSummary.totalQuestions})</span>
           </div>
         </div>
 
@@ -122,25 +157,25 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
           <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
             <div style={{ color: 'var(--color-success)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <CheckCircle size={18} />
-              {summary.correct}
+              {activeSummary.correct}
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Correct Answers</div>
-            <div style={{ color: 'var(--color-success)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>+{summary.awardedMarks.toFixed(2)} Marks</div>
+            <div style={{ color: 'var(--color-success)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>+{activeSummary.awardedMarks.toFixed(2)} Marks</div>
           </div>
 
           <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
             <div style={{ color: 'var(--color-danger)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <XCircle size={18} />
-              {summary.incorrect}
+              {activeSummary.incorrect}
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Incorrect Answers</div>
-            <div style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>-{summary.penaltyMarks.toFixed(2)} Penalty</div>
+            <div style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>-{activeSummary.penaltyMarks.toFixed(2)} Penalty</div>
           </div>
 
           <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
             <div style={{ color: 'var(--text-muted)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <HelpCircle size={18} />
-              {summary.unattempted}
+              {activeSummary.unattempted}
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Unattempted Questions</div>
             <div style={{ color: 'var(--text-dark)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>0.00 Marks</div>
@@ -208,7 +243,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
               </tr>
             </thead>
             <tbody>
-              {questions.map((q, idx) => {
+              {activeQuestions.map((q, idx) => {
                 let statusBadge = null;
                 let rowStyle = {};
                 let pointsStyle = {};
