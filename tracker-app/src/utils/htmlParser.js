@@ -1,7 +1,7 @@
 // HTML Parser utility to parse offline-compiled exam result files
 // Extracts titles, marks, and other stats from Netlify offline HTML files
 
-function parseQuestionsList(elements, startIndex) {
+function parseQuestionsList(elements, startIndex, isGateOverflow = false) {
   const questions = [];
   let attempted = 0;
   let correct = 0;
@@ -57,10 +57,28 @@ function parseQuestionsList(elements, startIndex) {
         }
       });
       
-      if (solEl.textContent.includes("not_answered")) {
-        status = "not_answered";
-      } else if (solEl.textContent.includes("answered")) {
-        status = "answered";
+      if (isGateOverflow) {
+        const statusEl = solEl.querySelector('.res_status');
+        if (statusEl) {
+          const classList = statusEl.className;
+          if (classList.includes('res_status_not_attempted') || statusEl.textContent.includes('Not Attempted')) {
+            status = 'not_answered';
+          } else if (classList.includes('res_status_correct') || statusEl.textContent.includes('Correct')) {
+            status = 'answered';
+          } else if (classList.includes('res_status_incorrect') || statusEl.textContent.includes('Wrong') || statusEl.textContent.includes('Incorrect')) {
+            status = 'answered';
+          } else if (classList.includes('res_status_marksToAll') || statusEl.textContent.includes('Marks To All')) {
+            status = 'answered'; // MTA is scored as correct
+          }
+        } else {
+          status = yourAnswer ? 'answered' : 'not_answered';
+        }
+      } else {
+        if (solEl.textContent.includes("not_answered")) {
+          status = "not_answered";
+        } else if (solEl.textContent.includes("answered")) {
+          status = "answered";
+        }
       }
     }
     
@@ -70,7 +88,14 @@ function parseQuestionsList(elements, startIndex) {
     let scoreEarned = 0;
     let qPenalty = penalty > 0 ? (award / 3) : 0;
     
-    if (yourAnswer !== "" && status === "answered") {
+    // If it's Marks To All on GATE Overflow, award full marks to everyone
+    const isMTA = isGateOverflow && solEl && (solEl.textContent.includes("Marks To All") || (solEl.querySelector('.res_status_marksToAll') !== null));
+    
+    if (isMTA) {
+      isAttempted = true; // MTA counts as correct attempt matching GA summary
+      isCorrect = true;
+      scoreEarned = award;
+    } else if (yourAnswer !== "" && status === "answered") {
       isAttempted = true;
       
       // Exact match
@@ -122,7 +147,7 @@ function parseQuestionsList(elements, startIndex) {
       award,
       penalty: qPenalty,
       yourAnswer,
-      correctAnswer,
+      correctAnswer: isMTA ? 'N/A' : correctAnswer,
       status: isAttempted ? (isCorrect ? 'correct' : 'incorrect') : 'unattempted',
       score: scoreEarned
     });
@@ -151,7 +176,7 @@ function parseQuestionsList(elements, startIndex) {
   };
 }
 
-export function calculateExamDetails(htmlText) {
+export function calculateExamDetails(htmlText, isGateOverflow = false) {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
@@ -173,7 +198,7 @@ export function calculateExamDetails(htmlText) {
         const sectionName = h2 ? h2.textContent.trim() : 'General';
         const qElements = secEl.querySelectorAll('.res_question');
         
-        const secSummary = parseQuestionsList(qElements, questions.length);
+        const secSummary = parseQuestionsList(qElements, questions.length, isGateOverflow);
         
         questions.push(...secSummary.questions);
         
@@ -196,7 +221,7 @@ export function calculateExamDetails(htmlText) {
         throw new Error("No question containers found with class 'res_question'.");
       }
       
-      const overallParsed = parseQuestionsList(qElements, 0);
+      const overallParsed = parseQuestionsList(qElements, 0, isGateOverflow);
       questions.push(...overallParsed.questions);
       
       // Auto-split 65 questions into Aptitude and Technical
@@ -297,23 +322,45 @@ export function calculateExamDetails(htmlText) {
   }
 }
 
-export function parseOfflineHtml(htmlText) {
+export function parseOfflineHtml(htmlText, selectedSource = 'auto') {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
     
-    // Extract title (e.g. "GATE CSE 2010 | Original Paper")
-    let title = doc.title || 'Unknown Exam';
-    title = title.replace('_Offline', '').replace(/_/g, ' ').trim();
-    if (title.endsWith('.html')) {
-      title = title.substring(0, title.length - 5);
+    // Auto-detect or use user's selection
+    let isGateOverflow = false;
+    if (selectedSource === 'gateoverflow') {
+      isGateOverflow = true;
+    } else if (selectedSource === 'gatearchive') {
+      isGateOverflow = false;
+    } else {
+      isGateOverflow = !!doc.querySelector('.exam_summary') || !!doc.querySelector('.score-ring') || !!doc.querySelector('.user_solution') || !!doc.querySelector('.correct_solution');
+    }
+    
+    // Extract title (e.g. "GATE CSE 2012 | Original Paper")
+    let title = '';
+    if (isGateOverflow) {
+      const examNameEl = doc.querySelector('.exam_name h2') || doc.querySelector('.exam_summary h2');
+      if (examNameEl) {
+        const examText = examNameEl.textContent.trim();
+        const match = examText.match(/Exam Summary\s*\(([^)]+)\)/i);
+        title = match ? match[1].trim() : examText.replace('Exam Summary', '').trim();
+      }
+    }
+    
+    if (!title) {
+      title = doc.title || 'Unknown Exam';
+      title = title.replace('_Offline', '').replace(/_/g, ' ').trim();
+      if (title.toLowerCase().endsWith('.html')) {
+        title = title.substring(0, title.length - 5);
+      }
     }
     
     // Check if we can parse the question elements
     const questionElements = doc.querySelectorAll('.res_question');
     if (questionElements.length > 0) {
       // We have question containers! Perform the exact calculation!
-      const calcResult = calculateExamDetails(htmlText);
+      const calcResult = calculateExamDetails(htmlText, isGateOverflow);
       if (calcResult.success) {
         const { summary } = calcResult;
         
@@ -338,8 +385,25 @@ export function parseOfflineHtml(htmlText) {
           return '';
         };
 
-        const durationRaw = extractVal('Exam Duration:');
-        const timeTakenRaw = extractVal('Time Taken:');
+        let durationRaw = '';
+        let timeTakenRaw = '';
+        
+        if (isGateOverflow) {
+          const timeVal = doc.querySelector('.gauge-time');
+          if (timeVal) {
+            timeTakenRaw = timeVal.textContent.trim();
+          }
+          const gaugeStats = doc.querySelector('.score-gauge-stats');
+          if (gaugeStats) {
+            const match = gaugeStats.textContent.match(/of\s*(\d+)m/i);
+            if (match) {
+              durationRaw = `${match[1]} Min`;
+            }
+          }
+        }
+
+        if (!durationRaw) durationRaw = extractVal('Exam Duration:');
+        if (!timeTakenRaw) timeTakenRaw = extractVal('Time Taken:');
 
         return {
           success: true,

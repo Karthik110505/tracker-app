@@ -5,6 +5,7 @@ import { parseOfflineHtml } from '../utils/htmlParser';
 export default function TestLoggerModal({ folderId, folders, onClose, onSave, editTest }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({ type: '', message: '' });
+  const [parserSource, setParserSource] = useState('auto');
   const fileInputRef = useRef(null);
 
   // Form Fields State
@@ -67,7 +68,7 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
     const reader = new FileReader();
     reader.onload = (event) => {
       const htmlText = event.target.result;
-      const parsed = parseOfflineHtml(htmlText);
+      const parsed = parseOfflineHtml(htmlText, parserSource);
 
       if (parsed.success) {
         setFormData(prev => ({
@@ -187,6 +188,49 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
       </div>
 
       <form onSubmit={handleSubmit}>
+        
+        {/* Exam Platform/HTML Source Selector */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block', color: 'var(--text-muted)' }}>
+            Exam Results HTML Source Platform
+          </label>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {['auto', 'gatearchive', 'gateoverflow'].map((source) => (
+              <label 
+                key={source} 
+                style={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px', 
+                  padding: '10px 14px', 
+                  background: parserSource === source ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255, 255, 255, 0.02)', 
+                  border: parserSource === source ? '1px solid var(--color-primary)' : '1px solid var(--border-card)', 
+                  borderRadius: '8px', 
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: parserSource === source ? '600' : 'normal',
+                  transition: 'all 0.2s ease',
+                  color: parserSource === source ? 'var(--text-main)' : 'var(--text-muted)'
+                }}
+              >
+                <input 
+                  type="radio" 
+                  name="parserSource" 
+                  value={source} 
+                  checked={parserSource === source} 
+                  onChange={() => setParserSource(source)} 
+                  style={{ accentColor: 'var(--color-primary)' }}
+                />
+                <span>
+                  {source === 'auto' && '🔍 Auto-Detect'}
+                  {source === 'gatearchive' && '🏛️ GATE Archive'}
+                  {source === 'gateoverflow' && '🌐 GATE Overflow'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
         
         {/* Drag & Drop File Upload */}
         <div 
