@@ -69,8 +69,8 @@ export function getMongoUri() {
 }
 
 export async function connectMongoDB() {
-  const uri = getMongoUri();
-  if (!uri || uri.includes('<db_password>')) {
+  const baseUri = getMongoUri();
+  if (!baseUri || baseUri.includes('<db_password>')) {
     lastMongoError = 'MONGODB_URI is not configured or contains placeholder in environment variables.';
     return false;
   }
@@ -78,22 +78,32 @@ export async function connectMongoDB() {
     lastMongoError = null;
     return true;
   }
-  try {
-    const cluster = uri.split('@')[1]?.split('?')[0] || 'Atlas';
-    console.log(`⏳ Connecting to MongoDB Atlas cluster at ${cluster}...`);
-    await mongoose.connect(uri, {
-      dbName: MONGODB_DB_NAME,
-      authSource: 'admin',
-      serverSelectionTimeoutMS: 10000
-    });
-    lastMongoError = null;
-    console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
-    return true;
-  } catch (err) {
-    lastMongoError = err.message;
-    console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
-    return false;
+
+  // Candidate connection URIs: configured URI, plus fallback to Atlas database user 'gatetracker' if needed
+  const urisToTry = [baseUri];
+  if (baseUri.includes('://bvvkarthik1105_db_user:')) {
+    urisToTry.push(baseUri.replace('://bvvkarthik1105_db_user:', '://gatetracker:'));
   }
+
+  for (const uri of urisToTry) {
+    try {
+      const cluster = uri.split('@')[1]?.split('?')[0] || 'Atlas';
+      console.log(`⏳ Connecting to MongoDB Atlas cluster at ${cluster}...`);
+      await mongoose.connect(uri, {
+        dbName: MONGODB_DB_NAME,
+        authSource: 'admin',
+        serverSelectionTimeoutMS: 10000
+      });
+      lastMongoError = null;
+      console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
+      return true;
+    } catch (err) {
+      lastMongoError = err.message;
+      console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
+    }
+  }
+
+  return false;
 }
 
 // Health check endpoint
@@ -105,7 +115,6 @@ app.get('/api/health', async (req, res) => {
   const dbState = mongoose.connection.readyState;
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
   const uri = getMongoUri();
-  const userMatch = uri ? uri.match(/:\/\/([^:]+):([^@]+)@/) : null;
 
   res.json({
     status: 'ok',
@@ -113,9 +122,6 @@ app.get('/api/health', async (req, res) => {
     databaseName: MONGODB_DB_NAME,
     hasMongoUri: !!uri,
     clusterHost: uri ? (uri.split('@')[1]?.split('?')[0] || 'configured') : 'missing',
-    configuredUser: userMatch ? userMatch[1] : null,
-    passLength: userMatch ? userMatch[2].length : 0,
-    passHasAngleBrackets: userMatch ? (userMatch[2].includes('<') || userMatch[2].includes('>')) : false,
     connectionError: dbState === 1 ? null : lastMongoError,
     timestamp: new Date().toISOString()
   });
