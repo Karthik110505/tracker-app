@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Folder, FolderOpen, Plus, Trash2, X, Check, LayoutDashboard } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export default function FolderNav({ folders, activeFolderId, onSelectFolder, onCreateFolder, onDeleteFolder }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -30,48 +29,16 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
   return (
     <div className="folder-nav">
       {/* Permanent General Dashboard Tab */}
-      <motion.div 
+      <div 
         onClick={() => onSelectFolder(null)}
         className={`folder-item ${activeFolderId === null ? 'active' : ''}`}
-        style={{ marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '10px', paddingBottom: '12px', position: 'relative' }}
-        whileHover={{ x: 4 }}
-        whileTap={{ scale: 0.98 }}
+        style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-card)', borderRadius: '8px', paddingBottom: '12px' }}
       >
-        {activeFolderId === null && (
-          <motion.div
-            layoutId="activeFolderGlow"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)',
-              border: '1px solid rgba(139, 92, 246, 0.25)',
-              borderRadius: '10px',
-              zIndex: 0,
-              pointerEvents: 'none'
-            }}
-          />
-        )}
-        {activeFolderId === null && (
-          <motion.div
-            layoutId="activeFolderIndicator"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: '15%',
-              height: '70%',
-              width: '3px',
-              borderRadius: '0 4px 4px 0',
-              background: 'linear-gradient(to bottom, var(--color-primary), var(--color-secondary))',
-              boxShadow: '0 0 6px var(--color-primary)',
-              zIndex: 1
-            }}
-          />
-        )}
-        <div className="folder-left" style={{ position: 'relative', zIndex: 2 }}>
+        <div className="folder-left">
           <LayoutDashboard size={16} />
           <span style={{ fontWeight: '600' }}>General Dashboard</span>
         </div>
-      </motion.div>
+      </div>
 
       <div className="folder-nav-header">
         <h3>Categories</h3>
@@ -112,45 +79,12 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
         {folders.map((folder) => {
           const isActive = folder.id === activeFolderId;
           return (
-            <motion.div 
+            <div 
               key={folder.id}
               onClick={() => onSelectFolder(folder.id)}
               className={`folder-item ${isActive ? 'active' : ''}`}
-              style={{ position: 'relative' }}
-              whileHover={{ x: 4 }}
-              whileTap={{ scale: 0.98 }}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="activeFolderGlow"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)',
-                    border: '1px solid rgba(139, 92, 246, 0.25)',
-                    borderRadius: '10px',
-                    zIndex: 0,
-                    pointerEvents: 'none'
-                  }}
-                />
-              )}
-              {isActive && (
-                <motion.div
-                  layoutId="activeFolderIndicator"
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: '15%',
-                    height: '70%',
-                    width: '3px',
-                    borderRadius: '0 4px 4px 0',
-                    background: 'linear-gradient(to bottom, var(--color-primary), var(--color-secondary))',
-                    boxShadow: '0 0 6px var(--color-primary)',
-                    zIndex: 1
-                  }}
-                />
-              )}
-              <div className="folder-left" style={{ position: 'relative', zIndex: 2 }}>
+              <div className="folder-left">
                 {isActive ? <FolderOpen size={16} /> : <Folder size={16} />}
                 <span>{folder.name}</span>
               </div>
@@ -164,11 +98,10 @@ export default function FolderNav({ folders, activeFolderId, onSelectFolder, onC
                 }}
                 className="folder-delete-btn"
                 title="Delete Folder"
-                style={{ position: 'relative', zIndex: 2 }}
               >
                 <Trash2 size={14} />
               </button>
-            </motion.div>
+            </div>
           );
         })}
 

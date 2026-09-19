@@ -3,7 +3,7 @@ import {
   Plus, Upload, Download, Trash2, 
   Eye, AlertCircle, FileText, LogOut,
   Menu, X, Edit2, ChevronLeft, ChevronRight,
-  Sun, Sunset, Cloud, CloudOff, RefreshCw, Smartphone
+  Sun, Sunset, Cloud, CloudOff, RefreshCw
 } from 'lucide-react';
 import { dbService } from './db';
 import { apiClient } from './api/client';
@@ -13,7 +13,6 @@ import TestLoggerModal from './components/TestLoggerModal';
 import PaperViewer from './components/PaperViewer';
 import Login from './components/Login';
 import TestAnalysis from './components/TestAnalysis';
-import MobileApp from './components/mobile/MobileApp';
 
 export default function App() {
   // Check if session token exists in local storage
@@ -35,32 +34,6 @@ export default function App() {
   const [sortField, setSortField] = useState('date');
   
   // Mobile UI state
-  const isCapacitor = typeof window !== 'undefined' && (
-    window.Capacitor !== undefined ||
-    window.location.protocol === 'capacitor:' ||
-    window.location.protocol === 'ionic:' ||
-    window.location.protocol === 'content:'
-  );
-
-  const [isMobileViewport, setIsMobileViewport] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    if (isCapacitor) return true;
-    return window.innerWidth <= 768;
-  });
-  const [forceMobilePreview, setForceMobilePreview] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (isCapacitor) {
-        setIsMobileViewport(true);
-      } else {
-        setIsMobileViewport(window.innerWidth <= 768);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isCapacitor]);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
@@ -327,21 +300,6 @@ export default function App() {
     return <Login onLogin={() => setIsLoggedIn(true)} />;
   }
 
-  // Render dedicated mobile companion experience when on mobile viewport or running in Capacitor / forced preview
-  if (isMobileViewport || forceMobilePreview) {
-    return (
-      <MobileApp
-        folders={folders}
-        tests={tests}
-        syncStatus={syncStatus}
-        onManualSync={handleManualSync}
-        onLogout={handleLogout}
-        isPreview={forceMobilePreview && !isMobileViewport}
-        onExitPreview={() => setForceMobilePreview(false)}
-      />
-    );
-  }
-
   return (
     <div className="app-layout">
       {isSidebarCollapsed && (
@@ -471,15 +429,6 @@ export default function App() {
           >
             <FileText size={14} />
             <span>Text Backup/Restore</span>
-          </button>
-          <button 
-            onClick={() => setForceMobilePreview(true)} 
-            className="btn btn-secondary" 
-            style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
-            title="Preview Android Mobile Companion view"
-          >
-            <Smartphone size={14} />
-            <span>Preview Mobile View</span>
           </button>
           <button 
             onClick={handleLogout} 

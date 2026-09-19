@@ -1,697 +1,546 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, BarChart, Bar, Legend 
+  ResponsiveContainer, ComposedChart, Area, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend 
 } from 'recharts';
 import { Calendar, Award, CheckCircle, Clock } from 'lucide-react';
-import { calculateExamDetails, getDifficultyRating } from '../utils/htmlParser';
-import { motion } from 'framer-motion';
 
-export default function Dashboard({ folderName, folderId, tests, folders, isGeneral }) {
-  // GATE 2027 Countdown Target: Feb 6, 2027 09:00:00
-  const targetDate = new Date('2027-02-06T09:00:00').getTime();
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+/**
+ * Isolated Countdown Timer Component
+ * Self-contained 1-second interval ensures ticks NEVER trigger re-renders
+ * of the parent Dashboard or its expensive charts.
+ */
+const CountdownTimer = memo(function CountdownTimer() {
+  const targetDate = useMemo(() => new Date('2027-02-06T09:00:00').getTime(), []);
   
-  // Persist series visibility state per subject/folder
-  const [visibleSeries, setVisibleSeries] = useState({
-    marks: true,
-    awardedMarks: true,
-    penalty: true,
-    accuracy: true,
-    attempted: true,
-    difficulty: true
-  });
-
-  useEffect(() => {
-    const key = `dashboard_visible_series_${folderId || 'general'}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        setVisibleSeries(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse saved visible series', e);
-      }
-    } else {
-      setVisibleSeries({
-        marks: true,
-        awardedMarks: true,
-        penalty: true,
-        accuracy: true,
-        attempted: true,
-        difficulty: true
-      });
-    }
-  }, [folderId]);
-
-  const handleToggleSeries = (seriesKey) => {
-    setVisibleSeries(prev => {
-      const next = { ...prev, [seriesKey]: !prev[seriesKey] };
-      const key = `dashboard_visible_series_${folderId || 'general'}`;
-      localStorage.setItem(key, JSON.stringify(next));
-      return next;
-    });
-  };
-
-  // State to filter by year
-  const [selectedYears, setSelectedYears] = useState({});
-
-  // Extract all unique years from the unfiltered tests
-  const uniqueYears = React.useMemo(() => {
-    const years = tests.map(t => {
-      const yearMatch = t.title.match(/\b(19|20)\d{2}\b/);
-      return yearMatch ? yearMatch[0] : 'Unknown';
-    });
-    return Array.from(new Set(years)).sort((a, b) => {
-      if (a === 'Unknown') return 1;
-      if (b === 'Unknown') return -1;
-      return b - a; // Descending
-    });
-  }, [tests]);
-
-  // Sync selected years state with localStorage
-  useEffect(() => {
-    const yearsKey = `dashboard_selected_years_${folderId || 'general'}`;
-    const savedYears = localStorage.getItem(yearsKey);
-    let parsedYears = {};
-    
-    if (savedYears) {
-      try {
-        parsedYears = JSON.parse(savedYears);
-      } catch (e) {
-        console.error('Failed to parse saved years', e);
-      }
-    }
-    
-    const newYears = {};
-    uniqueYears.forEach(y => {
-      newYears[y] = parsedYears[y] !== undefined ? parsedYears[y] : true;
-    });
-    
-    setSelectedYears(newYears);
-  }, [folderId, uniqueYears]);
-
-  const handleToggleYear = (year) => {
-    setSelectedYears(prev => {
-      const next = { ...prev, [year]: !prev[year] };
-      const yearsKey = `dashboard_selected_years_${folderId || 'general'}`;
-      localStorage.setItem(yearsKey, JSON.stringify(next));
-      return next;
-    });
-  };
-
-
-  // State to filter folders shown in the category comparison bar chart
-  const [selectedComparisonFolders, setSelectedComparisonFolders] = useState({});
-
-  const isFolderSelected = (fId) => {
-    return selectedComparisonFolders[fId] !== false;
-  };
-
-  const handleToggleFolderComparison = (fId) => {
-    setSelectedComparisonFolders(prev => ({
-      ...prev,
-      [fId]: !isFolderSelected(fId)
-    }));
-  };
-
-  function calculateTimeLeft() {
-    const now = new Date().getTime();
-    const difference = targetDate - now;
-    
+  const calculateTimeLeft = React.useCallback(() => {
+    const difference = targetDate - Date.now();
     if (difference <= 0) {
       return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     }
-    
     return {
       days: Math.floor(difference / (1000 * 60 * 60 * 24)),
       hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
       minutes: Math.floor((difference / 1000 / 60) % 60),
       seconds: Math.floor((difference / 1000) % 60)
     };
-  }
+  }, [targetDate]);
+
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(calculateTimeLeft());
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [calculateTimeLeft]);
 
-  // Filtered tests based on year
-  const displayingTests = React.useMemo(() => {
-    return tests.filter(t => {
-      const yearMatch = t.title.match(/\b(19|20)\d{2}\b/);
-      const year = yearMatch ? yearMatch[0] : 'Unknown';
-      const isYearSelected = selectedYears[year] !== false;
-      return isYearSelected;
-    });
-  }, [tests, selectedYears]);
+  return (
+    <div className="glass-card countdown-card">
+      <div className="countdown-info">
+        <h3>GATE 2027 Timer</h3>
+        <p>Time remaining until the GATE 2027 exam</p>
+      </div>
+      <div className="countdown-digits">
+        <div className="countdown-block">
+          <span className="countdown-number">{timeLeft.days}</span>
+          <span className="countdown-label">Days</span>
+        </div>
+        <div className="countdown-block">
+          <span className="countdown-number">{timeLeft.hours.toString().padStart(2, '0')}</span>
+          <span className="countdown-label">Hrs</span>
+        </div>
+        <div className="countdown-block">
+          <span className="countdown-number">{timeLeft.minutes.toString().padStart(2, '0')}</span>
+          <span className="countdown-label">Min</span>
+        </div>
+        <div className="countdown-block">
+          <span className="countdown-number">{timeLeft.seconds.toString().padStart(2, '0')}</span>
+          <span className="countdown-label">Sec</span>
+        </div>
+      </div>
+    </div>
+  );
+});
 
-  // Compute overall stats
-  const { totalTests, avgMarks, avgAccuracy, attemptRate } = React.useMemo(() => {
-    const totalTests = displayingTests.length;
-    
-    const avgMarks = totalTests > 0 
-      ? (displayingTests.reduce((acc, t) => acc + t.marks, 0) / totalTests).toFixed(2)
-      : '0.00';
-      
-    const avgAccuracy = totalTests > 0
-      ? Math.round(displayingTests.reduce((acc, t) => {
-          const accNum = parseInt(t.accuracy) || 0;
-          return acc + accNum;
-        }, 0) / totalTests)
-      : 0;
+/**
+ * Rich Custom HUD Tooltip for Progression Charts
+ */
+function CustomProgressionTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  const testData = payload[0]?.payload || {};
 
-    const totalAttempted = displayingTests.reduce((acc, t) => acc + t.attempted, 0);
-    const totalQuestions = displayingTests.reduce((acc, t) => acc + t.totalQs, 0);
-    const attemptRate = totalQuestions > 0
-      ? Math.round((totalAttempted / totalQuestions) * 100)
-      : 0;
+  return (
+    <div style={{
+      backgroundColor: 'rgba(13, 17, 39, 0.95)',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRadius: '10px',
+      padding: '12px 16px',
+      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6)',
+      backdropFilter: 'blur(12px)',
+      color: '#f8fafc',
+      fontSize: '13px',
+      minWidth: '220px'
+    }}>
+      <div style={{ fontWeight: '700', fontSize: '14px', marginBottom: '2px', color: '#ffffff' }}>
+        {testData.fullTitle || label}
+      </div>
+      {testData.date && (
+        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
+          Date: {testData.date}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px' }}>
+        {payload.map((entry) => (
+          <div key={entry.dataKey} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
+              <span style={{ 
+                width: '8px', 
+                height: '8px', 
+                borderRadius: '50%', 
+                backgroundColor: entry.color || entry.stroke, 
+                display: 'inline-block' 
+              }} />
+              {entry.name}:
+            </span>
+            <span style={{ fontWeight: '700', color: entry.color || entry.stroke }}>
+              {entry.value}{entry.dataKey === 'accuracy' ? '%' : ''}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-    return { totalTests, avgMarks, avgAccuracy, attemptRate };
-  }, [displayingTests]);
+export default function Dashboard({ folderName, tests = [], folders = [], isGeneral }) {
+  // Interactive Metric Visibility Toggles
+  const [activeMetrics, setActiveMetrics] = useState({
+    marks: true,
+    accuracy: true,
+    attempted: false,
+    penalty: false
+  });
 
-  // Prepare overall timeline chart data
-  const timelineData = React.useMemo(() => {
-    const sortedTests = [...displayingTests].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    return sortedTests.map((t, idx) => {
-      const yearMatch = t.title.match(/\b(19|20)\d{2}\b/);
-      const setMatch = t.title.match(/(?:set|shift|session)\s*([1-3])/i);
-      let shortName = yearMatch ? yearMatch[0] : `T${idx + 1}`;
-      if (yearMatch && setMatch) {
-        shortName = `${yearMatch[0]} S${setMatch[1]}`;
-      }
-      
-      let penalty = 0;
-      let awardedMarks = 0;
-      
-      if (t.paperHtml) {
-        const details = calculateExamDetails(t.paperHtml);
-        if (details && details.success) {
-          penalty = details.summary.penaltyMarks;
-          awardedMarks = details.summary.awardedMarks;
-        }
-      }
-      
-      if (penalty === 0 && awardedMarks === 0) {
-        // Fallback approximation for manually logged tests
-        const correctVal = t.correct || 0;
-        const incorrectVal = t.incorrect || 0;
-        const marksVal = t.marks || 0;
+  const toggleMetric = (key) => {
+    setActiveMetrics(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Compute Overall KPI Stats (Memoized to prevent recalculations)
+  const { totalTests, avgMarks, avgAccuracy, attemptRate } = useMemo(() => {
+    const count = tests.length;
+    if (count === 0) {
+      return { totalTests: 0, avgMarks: '0.00', avgAccuracy: 0, attemptRate: 0 };
+    }
+
+    const marksSum = tests.reduce((acc, t) => acc + (t.marks || 0), 0);
+    const accuracySum = tests.reduce((acc, t) => acc + (parseInt(t.accuracy) || 0), 0);
+    const attemptedSum = tests.reduce((acc, t) => acc + (t.attempted || 0), 0);
+    const questionsSum = tests.reduce((acc, t) => acc + (t.totalQs || 0), 0);
+
+    return {
+      totalTests: count,
+      avgMarks: (marksSum / count).toFixed(2),
+      avgAccuracy: Math.round(accuracySum / count),
+      attemptRate: questionsSum > 0 ? Math.round((attemptedSum / questionsSum) * 100) : 0
+    };
+  }, [tests]);
+
+  // High-Performance Timeline Data (Instantaneous Arithmetic - 0ms DOMParser overhead!)
+  const timelineData = useMemo(() => {
+    const sorted = [...tests].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    return sorted.map((t, idx) => {
+      const yearMatch = t.title ? t.title.match(/\b(19|20)\d{2}\b/) : null;
+      const shortName = yearMatch ? yearMatch[0] : `T${idx + 1}`;
+
+      const correctVal = t.correct || 0;
+      const incorrectVal = t.incorrect || 0;
+      const marksVal = t.marks || 0;
+
+      let penalty = t.penaltyMarks !== undefined ? t.penaltyMarks : (t.penalty !== undefined ? t.penalty : 0);
+      let awardedMarks = t.awardedMarks !== undefined ? t.awardedMarks : 0;
+
+      if (!penalty && !awardedMarks) {
         const denominator = correctVal - (incorrectVal / 3);
         if (denominator > 0) {
           const w = marksVal / denominator;
           awardedMarks = parseFloat((correctVal * w).toFixed(2));
-          penalty = parseFloat((incorrectVal * w / 3).toFixed(2));
+          penalty = parseFloat(((incorrectVal * w) / 3).toFixed(2));
         } else {
           awardedMarks = marksVal;
           penalty = 0;
         }
       }
-      
-      let difficulty = t.difficulty;
-      if (difficulty === undefined || difficulty === null) {
-        difficulty = getDifficultyRating(t.title);
-      }
-      
+
       return {
-        id: t.id,
         name: shortName,
         fullTitle: t.title,
-        marks: t.marks,
+        date: t.date,
+        marks: parseFloat(marksVal.toFixed(2)),
         accuracy: parseInt(t.accuracy) || 0,
-        attempted: t.attempted,
-        awardedMarks,
-        penalty,
-        difficulty
+        attempted: t.attempted || 0,
+        awardedMarks: parseFloat(awardedMarks.toFixed(2)),
+        penalty: parseFloat(penalty.toFixed(2))
       };
     });
-  }, [displayingTests]);
-
-  const hasDifficultyData = React.useMemo(() => {
-    return timelineData.some(d => d.difficulty !== undefined && d.difficulty !== null);
-  }, [timelineData]);
+  }, [tests]);
 
   // Compile Category Comparison Data (General Dashboard only)
-  const categoryComparisonData = React.useMemo(() => {
-    let compData = [];
-    if (isGeneral && folders && folders.length > 0) {
-      const folderStats = {};
-      
-      folders.forEach(f => {
-        folderStats[f.id] = {
-          name: f.name,
-          totalMarks: 0,
-          count: 0,
-          totalAccuracy: 0
-        };
-      });
+  const categoryComparisonData = useMemo(() => {
+    if (!isGeneral || !folders || folders.length === 0) return [];
 
-      displayingTests.forEach(t => {
-        if (folderStats[t.folderId]) {
-          folderStats[t.folderId].totalMarks += t.marks;
-          folderStats[t.folderId].totalAccuracy += (parseInt(t.accuracy) || 0);
-          folderStats[t.folderId].count++;
-        }
-      });
+    const folderStats = {};
+    folders.forEach(f => {
+      folderStats[f.id] = {
+        name: f.name,
+        totalMarks: 0,
+        count: 0,
+        totalAccuracy: 0
+      };
+    });
 
-      compData = Object.keys(folderStats)
-        .filter(id => isFolderSelected(id))
-        .map(key => {
-          const stats = folderStats[key];
-          return {
-            name: stats.name,
-            'Avg Marks': stats.count > 0 ? parseFloat((stats.totalMarks / stats.count).toFixed(2)) : 0,
-            'Avg Accuracy %': stats.count > 0 ? Math.round(stats.totalAccuracy / stats.count) : 0,
-            'Tests Logged': stats.count
-          };
-        });
-    }
-    return compData;
-  }, [isGeneral, folders, displayingTests, selectedComparisonFolders]);
+    tests.forEach(t => {
+      if (folderStats[t.folderId]) {
+        folderStats[t.folderId].totalMarks += (t.marks || 0);
+        folderStats[t.folderId].totalAccuracy += (parseInt(t.accuracy) || 0);
+        folderStats[t.folderId].count++;
+      }
+    });
 
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-    >
-      
-      {/* Top Section: Welcome & Countdown */}
-      <div className="welcome-countdown-grid">
-        <div className={`glass-card welcome-card ${isGeneral ? 'general-welcome-card' : ''}`}>
-          <div className="welcome-info">
-            <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '6px' }}>
-              {isGeneral ? 'General Revision Tracker' : 'GATE 2027 Dashboard'}
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-              Active Category: <strong style={{ color: 'var(--color-primary)' }}>{folderName || 'General Dashboard'}</strong>
-            </p>
-            <p style={{ color: 'var(--text-dark)', fontSize: '12px', marginTop: '12px' }}>
-              {isGeneral 
-                ? 'Aggregated summary of your performance across all folders. Compare categories side-by-side below.'
-                : 'Practice like a real mock environment. Drag your offline HTML result papers into the logger to populate metrics instantly.'}
-            </p>
-          </div>
-          {isGeneral && (
-            <div className="general-total-tests-stat">
-              <div className="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
-                <Calendar size={22} />
-              </div>
-              <div className="stat-info">
-                <span className="stat-value">{totalTests}</span>
-                <span className="stat-label">Total Tests Logged</span>
-              </div>
-            </div>
-          )}
+    return Object.keys(folderStats).map(key => {
+      const stats = folderStats[key];
+      return {
+        name: stats.name,
+        'Avg Marks': stats.count > 0 ? parseFloat((stats.totalMarks / stats.count).toFixed(2)) : 0,
+        'Avg Accuracy %': stats.count > 0 ? Math.round(stats.totalAccuracy / stats.count) : 0,
+        'Tests Logged': stats.count
+      };
+    });
+  }, [isGeneral, folders, tests]);
+
+  // Helper renderer for Progression ComposedChart
+  const renderProgressionChart = (title, subtitle) => (
+    <div className="glass-card full-width-chart-card">
+      <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="chart-title">
+          <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>{title}</h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>{subtitle}</p>
         </div>
 
-        <div className="glass-card countdown-card">
-          <div className="countdown-info">
-            <h3>GATE 2027 Timer</h3>
-            <p>Time remaining until the GATE 2027 exam</p>
+        {/* Interactive Metric Filter Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <button 
+            type="button"
+            onClick={() => toggleMetric('marks')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: activeMetrics.marks ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+              backgroundColor: activeMetrics.marks ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
+              color: activeMetrics.marks ? '#60a5fa' : '#94a3b8',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+            Marks Obtained
+          </button>
+          <button 
+            type="button"
+            onClick={() => toggleMetric('accuracy')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: activeMetrics.accuracy ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
+              backgroundColor: activeMetrics.accuracy ? 'rgba(139, 92, 246, 0.18)' : 'transparent',
+              color: activeMetrics.accuracy ? '#a78bfa' : '#94a3b8',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#8b5cf6' }} />
+            Accuracy %
+          </button>
+          <button 
+            type="button"
+            onClick={() => toggleMetric('attempted')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: activeMetrics.attempted ? '#f59e0b' : 'rgba(255,255,255,0.1)',
+              backgroundColor: activeMetrics.attempted ? 'rgba(245, 158, 11, 0.18)' : 'transparent',
+              color: activeMetrics.attempted ? '#fbbf24' : '#94a3b8',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+            Attempts
+          </button>
+          <button 
+            type="button"
+            onClick={() => toggleMetric('penalty')}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: activeMetrics.penalty ? '#ef4444' : 'rgba(255,255,255,0.1)',
+              backgroundColor: activeMetrics.penalty ? 'rgba(239, 68, 68, 0.18)' : 'transparent',
+              color: activeMetrics.penalty ? '#f87171' : '#94a3b8',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+            Penalty
+          </button>
+        </div>
+      </div>
+      
+      <div style={{ width: '100%', height: 320, marginTop: '16px' }}>
+        {timelineData.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <ComposedChart data={timelineData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorMarksGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.06)" />
+              <XAxis 
+                dataKey="name" 
+                stroke="#94a3b8" 
+                fontSize={12} 
+                tickLine={false} 
+              />
+              <YAxis 
+                domain={[0, 100]} 
+                stroke="#94a3b8" 
+                fontSize={12} 
+                tickLine={false} 
+                axisLine={false} 
+              />
+              <Tooltip content={<CustomProgressionTooltip />} />
+              <Legend verticalAlign="top" height={36} />
+
+              {/* Marks Obtained: Hero Area */}
+              {activeMetrics.marks && (
+                <Area 
+                  type="monotone" 
+                  dataKey="marks" 
+                  name="Marks Obtained" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2.5} 
+                  fill="url(#colorMarksGrad)" 
+                  dot={{ r: 3, fill: '#3b82f6' }}
+                  activeDot={{ r: 6, fill: '#60a5fa' }}
+                  isAnimationActive={false}
+                />
+              )}
+
+              {/* Accuracy %: Crisp Line */}
+              {activeMetrics.accuracy && (
+                <Line 
+                  type="monotone" 
+                  dataKey="accuracy" 
+                  name="Accuracy %" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={2} 
+                  dot={{ r: 3, fill: '#8b5cf6' }}
+                  activeDot={{ r: 6, fill: '#a78bfa' }}
+                  isAnimationActive={false}
+                />
+              )}
+
+              {/* Questions Attempted: Amber Dashed Line */}
+              {activeMetrics.attempted && (
+                <Line 
+                  type="monotone" 
+                  dataKey="attempted" 
+                  name="Questions Attempted" 
+                  stroke="#f59e0b" 
+                  strokeWidth={1.5} 
+                  strokeDasharray="4 4"
+                  dot={{ r: 3, fill: '#f59e0b' }}
+                  activeDot={{ r: 5, fill: '#fbbf24' }}
+                  isAnimationActive={false}
+                />
+              )}
+
+              {/* Penalty Marks: Ruby Red Dotted Line */}
+              {activeMetrics.penalty && (
+                <Line 
+                  type="monotone" 
+                  dataKey="penalty" 
+                  name="Penalty Marks" 
+                  stroke="#ef4444" 
+                  strokeWidth={1.5} 
+                  strokeDasharray="3 3"
+                  dot={{ r: 3, fill: '#ef4444' }}
+                  activeDot={{ r: 5, fill: '#f87171' }}
+                  isAnimationActive={false}
+                />
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dark)', fontSize: '14px' }}>
+            No performance data available. Log tests under this category to plot graphs.
           </div>
-          <div className="countdown-digits">
-            <div className="countdown-block">
-              <span className="countdown-number">{timeLeft.days}</span>
-              <span className="countdown-label">Days</span>
-            </div>
-            <div className="countdown-block">
-              <span className="countdown-number">{timeLeft.hours.toString().padStart(2, '0')}</span>
-              <span className="countdown-label">Hrs</span>
-            </div>
-            <div className="countdown-block">
-              <span className="countdown-number">{timeLeft.minutes.toString().padStart(2, '0')}</span>
-              <span className="countdown-label">Min</span>
-            </div>
-            <div className="countdown-block">
-              <span className="countdown-number">{timeLeft.seconds.toString().padStart(2, '0')}</span>
-              <span className="countdown-label">Sec</span>
-            </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      
+      {/* Top Section: Welcome & Isolated Countdown */}
+      <div className="welcome-countdown-grid">
+        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '6px' }}>
+            {isGeneral ? 'General Revision Tracker' : 'GATE 2027 Dashboard'}
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+            Active Category: <strong style={{ color: 'var(--color-primary)' }}>{folderName || 'General Dashboard'}</strong>
+          </p>
+          <p style={{ color: 'var(--text-dark)', fontSize: '12px', marginTop: '12px' }}>
+            {isGeneral 
+              ? 'Aggregated summary of your performance across all folders. Compare categories side-by-side below.'
+              : 'Practice like a real mock environment. Drag your offline HTML result papers into the logger to populate metrics instantly.'}
+          </p>
+        </div>
+
+        {/* Self-contained Countdown Timer */}
+        <CountdownTimer />
+      </div>
+
+      {/* KPI Stats Grid */}
+      <div className="stats-grid">
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
+            <Calendar size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value">{totalTests}</span>
+            <span className="stat-label">Total Tests Logged</span>
+          </div>
+        </div>
+
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
+            <Award size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value">{avgMarks}</span>
+            <span className="stat-label">Overall Average Score</span>
+          </div>
+        </div>
+
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+            <CheckCircle size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value">{avgAccuracy}%</span>
+            <span className="stat-label">Overall Avg Accuracy</span>
+          </div>
+        </div>
+
+        <div className="glass-card stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+            <Clock size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value">{attemptRate}%</span>
+            <span className="stat-label">Overall Attempt Rate</span>
           </div>
         </div>
       </div>
-
-      {/* KPI Stats Grid - only shown for specific categories */}
-      {!isGeneral && (
-        <div className="stats-grid">
-          <div className="glass-card stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
-              <Calendar size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-value">{totalTests}</span>
-              <span className="stat-label">Total Tests Logged</span>
-            </div>
-          </div>
-
-          <div className="glass-card stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
-              <Award size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-value">{avgMarks}</span>
-              <span className="stat-label">Overall Average Score</span>
-            </div>
-          </div>
-
-          <div className="glass-card stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
-              <CheckCircle size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-value">{avgAccuracy}%</span>
-              <span className="stat-label">Overall Avg Accuracy</span>
-            </div>
-          </div>
-
-          <div className="glass-card stat-card">
-            <div className="stat-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
-              <Clock size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-value">{attemptRate}%</span>
-              <span className="stat-label">Overall Attempt Rate</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Analytics Charts Grid */}
       <div className="charts-grid">
         {isGeneral ? (
-          /* Category Comparison Bar Chart */
-          <div className="glass-card">
-            <div className="chart-header">
-              <div className="chart-title">
-                <h3>Category Performance Comparison</h3>
-                <p>Comparing scores and accuracy across different classes / folders</p>
+          <>
+            {/* Category Comparison Bar Chart */}
+            <div className="glass-card">
+              <div className="chart-header">
+                <div className="chart-title">
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Category Performance Comparison</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Comparing scores and accuracy across different classes / folders</p>
+                </div>
               </div>
-            </div>
-
-            {/* Category Selector Checkboxes */}
-            {folders && folders.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', flexWrap: 'wrap', marginBottom: '12px', padding: '12px 16px', background: 'rgba(3, 5, 11, 0.3)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '6px' }}>
-                  Filter Categories:
-                </span>
-                {folders.map(f => {
-                  const isSelected = isFolderSelected(f.id);
-                  return (
-                    <label 
-                      key={f.id} 
-                      style={{ 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '6px', 
-                        fontSize: '12px', 
-                        cursor: 'pointer', 
-                        color: isSelected ? 'var(--text-main)' : 'var(--text-muted)', 
-                        userSelect: 'none',
-                        background: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                        border: isSelected ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(255, 255, 255, 0.05)',
-                        borderRadius: '20px',
-                        padding: '5px 12px',
-                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                        fontWeight: isSelected ? '600' : '400'
-                      }}
-                    >
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected} 
-                        onChange={() => handleToggleFolderComparison(f.id)}
-                        style={{ display: 'none' }}
-                      />
-                      <span>{f.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Year Selector Checkboxes */}
-            {uniqueYears.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', flexWrap: 'wrap', marginBottom: '24px', padding: '12px 16px', background: 'rgba(3, 5, 11, 0.3)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '6px' }}>
-                  Filter Years:
-                </span>
-                {uniqueYears.map(year => {
-                  const isSelected = selectedYears[year] !== false;
-                  return (
-                    <label 
-                      key={year} 
-                      style={{ 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '6px', 
-                        fontSize: '12px', 
-                        cursor: 'pointer', 
-                        color: isSelected ? 'var(--text-main)' : 'var(--text-muted)', 
-                        userSelect: 'none',
-                        background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                        border: isSelected ? '1px solid rgba(139, 92, 246, 0.35)' : '1px solid rgba(255, 255, 255, 0.05)',
-                        borderRadius: '20px',
-                        padding: '5px 12px',
-                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                        fontWeight: isSelected ? '600' : '400'
-                      }}
-                    >
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected} 
-                        onChange={() => handleToggleYear(year)}
-                        style={{ display: 'none' }}
-                      />
-                      <span>{year}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ width: '100%', height: 300 }}>
-              {tests.length > 0 ? (
-                categoryComparisonData.length > 0 ? (
-                  <ResponsiveContainer>
+              <div style={{ width: '100%', height: 300, marginTop: '16px' }}>
+                {tests.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <BarChart data={categoryComparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} />
-                      <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.06)" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
                       <Tooltip 
                         contentStyle={{ 
-                          backgroundColor: '#0d1127', 
-                          borderColor: 'rgba(255, 255, 255, 0.08)',
-                          borderRadius: '12px',
-                          color: 'var(--text-main)',
-                          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
+                          backgroundColor: 'rgba(13, 17, 39, 0.95)', 
+                          borderColor: 'rgba(255, 255, 255, 0.15)',
+                          borderRadius: '10px',
+                          color: '#f8fafc' 
                         }}
-                        cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }}
                       />
                       <Legend verticalAlign="top" height={36} />
-                      <Bar dataKey="Avg Marks" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Avg Accuracy %" fill="var(--color-secondary)" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Avg Marks" fill="#3b82f6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                      <Bar dataKey="Avg Accuracy %" fill="#8b5cf6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dark)', fontSize: '14px' }}>
-                    Select at least one category to view comparison.
+                    No test data logged to compare categories.
                   </div>
-                )
-              ) : (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dark)', fontSize: '14px' }}>
-                  No test data logged to compare categories.
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+
+            {/* Overall Progression Timeline (General Dashboard) */}
+            {renderProgressionChart(
+              'Overall Study Progression',
+              'Timeline of test scores, accuracy, and performance over time'
+            )}
+          </>
         ) : (
           /* Scoped Category Chart */
-          <div className="glass-card full-width-chart-card">
-            <div className="chart-header">
-              <div className="chart-title">
-                <h3>Performance Progression</h3>
-                <p>Graph showing marks yearwise / test-by-test</p>
-              </div>
-            </div>
-            
-            {tests.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'row', gap: '20px', flexWrap: 'wrap', marginTop: '16px' }}>
-                {/* Toggles Panel */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '190px', padding: '16px', background: 'rgba(3, 5, 11, 0.4)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', alignSelf: 'flex-start' }}>
-                  <h4 style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Toggle Visibility</h4>
-                  {[
-                    { key: 'marks', name: 'Marks Obtained', color: 'var(--color-primary)' },
-                    { key: 'awardedMarks', name: 'Marks Without Penalty', color: 'var(--color-success)' },
-                    { key: 'penalty', name: 'Penalty', color: 'var(--color-danger)' },
-                    { key: 'accuracy', name: 'Accuracy %', color: 'var(--color-secondary)' },
-                    { key: 'attempted', name: 'Questions Attempted', color: 'var(--color-warning)' },
-                    ...(hasDifficultyData ? [{ key: 'difficulty', name: 'Difficulty Rating', color: '#ec4899' }] : [])
-                  ].map((s) => {
-                    const isChecked = visibleSeries[s.key];
-                    return (
-                      <label 
-                        key={s.key} 
-                        style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '8px', 
-                          fontSize: '12px', 
-                          cursor: 'pointer', 
-                          color: isChecked ? 'var(--text-main)' : 'var(--text-muted)', 
-                          userSelect: 'none',
-                          padding: '6px 8px',
-                          borderRadius: '6px',
-                          background: isChecked ? 'rgba(255,255,255,0.03)' : 'transparent',
-                          transition: 'all 0.2s ease',
-                          border: isChecked ? '1px solid rgba(255,255,255,0.04)' : '1px solid transparent'
-                        }}
-                      >
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked} 
-                          onChange={() => handleToggleSeries(s.key)}
-                          style={{ accentColor: s.color, width: '14px', height: '14px', cursor: 'pointer' }}
-                        />
-                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: s.color, boxShadow: isChecked ? `0 0 8px ${s.color}` : 'none' }} />
-                        <span style={{ fontWeight: isChecked ? '600' : '400' }}>{s.name}</span>
-                      </label>
-                    );
-                  })}
-
-                  {/* Filter by Year */}
-                  {uniqueYears.length > 0 && (
-                    <>
-                      <hr style={{ border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.05)', margin: '12px 0' }} />
-                      <h4 style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Filter by Year</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }}>
-                        {uniqueYears.map(year => {
-                          const isChecked = selectedYears[year] !== false;
-                          return (
-                            <label 
-                              key={year} 
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                fontSize: '12px', 
-                                cursor: 'pointer', 
-                                color: isChecked ? 'var(--text-main)' : 'var(--text-muted)', 
-                                userSelect: 'none',
-                                padding: '6px 8px',
-                                borderRadius: '6px',
-                                background: isChecked ? 'rgba(255,255,255,0.03)' : 'transparent',
-                                transition: 'all 0.2s ease',
-                                border: isChecked ? '1px solid rgba(255,255,255,0.04)' : '1px solid transparent'
-                              }}
-                            >
-                              <input 
-                                type="checkbox" 
-                                checked={isChecked} 
-                                onChange={() => handleToggleYear(year)}
-                                style={{ accentColor: 'var(--color-primary)', width: '14px', height: '14px', cursor: 'pointer' }}
-                              />
-                              <span style={{ fontWeight: isChecked ? '600' : '400' }}>{year}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                </div>
-                
-                {/* Chart Container */}
-                <div style={{ flex: 1, height: 300, minWidth: '300px' }}>
-                  {timelineData.length > 0 ? (
-                    <ResponsiveContainer>
-                      <AreaChart data={timelineData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorMarks" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="colorAccuracy" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-secondary)" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="var(--color-secondary)" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="colorAwarded" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="colorPenalty" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-danger)" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="var(--color-danger)" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="colorAttempts" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--color-warning)" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="var(--color-warning)" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="colorDifficulty" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ec4899" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#ec4899" stopOpacity={0.0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                        <XAxis 
-                          dataKey="id" 
-                          tickFormatter={(id) => {
-                            const item = timelineData.find(d => d.id === id);
-                            return item ? item.name : '';
-                          }} 
-                          stroke="var(--text-muted)" 
-                          fontSize={12} 
-                          tickLine={false} 
-                        />
-                        <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#0d1127', 
-                            borderColor: 'rgba(255, 255, 255, 0.08)',
-                            borderRadius: '12px',
-                            color: 'var(--text-main)',
-                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
-                          }}
-                          labelFormatter={(label, payload) => payload && payload[0] ? payload[0].payload.fullTitle : label}
-                        />
-                        <Legend verticalAlign="top" height={36} />
-                        {visibleSeries.marks && (
-                          <Area type="monotone" dataKey="marks" name="Marks Obtained" stroke="var(--color-primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorMarks)" />
-                        )}
-                        {visibleSeries.awardedMarks && (
-                          <Area type="monotone" dataKey="awardedMarks" name="Marks Without Penalty" stroke="var(--color-success)" strokeWidth={2} fillOpacity={1} fill="url(#colorAwarded)" />
-                        )}
-                        {visibleSeries.penalty && (
-                          <Area type="monotone" dataKey="penalty" name="Penalty" stroke="var(--color-danger)" strokeWidth={2} fillOpacity={1} fill="url(#colorPenalty)" />
-                        )}
-                        {visibleSeries.accuracy && (
-                          <Area type="monotone" dataKey="accuracy" name="Accuracy %" stroke="var(--color-secondary)" strokeWidth={1} fillOpacity={1} fill="url(#colorAccuracy)" />
-                        )}
-                        {visibleSeries.attempted && (
-                          <Area type="monotone" dataKey="attempted" name="Questions Attempted" stroke="var(--color-warning)" strokeWidth={1.5} fillOpacity={1} fill="url(#colorAttempts)" />
-                        )}
-                        {hasDifficultyData && visibleSeries.difficulty && (
-                          <Area type="monotone" dataKey="difficulty" name="Difficulty Rating" stroke="#ec4899" strokeWidth={2} fillOpacity={1} fill="url(#colorDifficulty)" />
-                        )}
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dark)', fontSize: '14px' }}>
-                      No data matches the selected Year filters.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dark)', fontSize: '14px' }}>
-                No performance data available. Log tests under this category to plot graphs.
-              </div>
-            )}
-          </div>
+          renderProgressionChart(
+            'Performance Progression',
+            'Graph showing marks, accuracy, and test progression'
+          )
         )}
       </div>
 
-    </motion.div>
+    </div>
   );
 }

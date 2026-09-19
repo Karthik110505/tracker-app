@@ -663,7 +663,9 @@ export function parseOfflineHtml(htmlText, selectedSource = 'auto') {
           accuracy: `${summary.accuracy}%`,
           percentage: `${((summary.score / (summary.totalMarks || 100)) * 100).toFixed(2)}%`,
           difficulty: getDifficultyRating(title),
-          session: detectSession(title, htmlText)
+          session: detectSession(title, htmlText),
+          penaltyMarks: summary.penaltyMarks,
+          awardedMarks: summary.awardedMarks
         };
       }
     }
