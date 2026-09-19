@@ -57,6 +57,7 @@ app.use('/api/tests', testRoutes);
 app.use('/api/sync', syncRoutes);
 
 let lastMongoError = null;
+let isConnecting = false;
 
 export function getMongoUri() {
   let uri = process.env.MONGODB_URI;
@@ -69,41 +70,49 @@ export function getMongoUri() {
 }
 
 export async function connectMongoDB() {
-  const baseUri = getMongoUri();
-  if (!baseUri || baseUri.includes('<db_password>')) {
-    lastMongoError = 'MONGODB_URI is not configured or contains placeholder in environment variables.';
-    return false;
-  }
   if (mongoose.connection.readyState === 1) {
     lastMongoError = null;
     return true;
   }
+  if (isConnecting) {
+    return false;
+  }
+  isConnecting = true;
 
-  // Candidate connection URIs: configured URI, plus fallback to Atlas database user 'gatetracker' if needed
+  const baseUri = getMongoUri();
+  if (!baseUri || baseUri.includes('<db_password>')) {
+    lastMongoError = 'MONGODB_URI is not configured or contains placeholder in environment variables.';
+    isConnecting = false;
+    return false;
+  }
+
   const urisToTry = [baseUri];
   if (baseUri.includes('://bvvkarthik1105_db_user:')) {
     urisToTry.push(baseUri.replace('://bvvkarthik1105_db_user:', '://gatetracker:'));
   }
 
-  for (const uri of urisToTry) {
-    try {
-      const cluster = uri.split('@')[1]?.split('?')[0] || 'Atlas';
-      console.log(`⏳ Connecting to MongoDB Atlas cluster at ${cluster}...`);
-      await mongoose.connect(uri, {
-        dbName: MONGODB_DB_NAME,
-        authSource: 'admin',
-        serverSelectionTimeoutMS: 10000
-      });
-      lastMongoError = null;
-      console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
-      return true;
-    } catch (err) {
-      lastMongoError = err.message;
-      console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
+  try {
+    for (const uri of urisToTry) {
+      try {
+        const cluster = uri.split('@')[1]?.split('?')[0] || 'Atlas';
+        console.log(`⏳ Connecting to MongoDB Atlas cluster at ${cluster}...`);
+        await mongoose.connect(uri, {
+          dbName: MONGODB_DB_NAME,
+          authSource: 'admin',
+          serverSelectionTimeoutMS: 5000
+        });
+        lastMongoError = null;
+        console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
+        return true;
+      } catch (err) {
+        lastMongoError = err.message;
+        console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
+      }
     }
+    return false;
+  } finally {
+    isConnecting = false;
   }
-
-  return false;
 }
 
 // Health check endpoint
