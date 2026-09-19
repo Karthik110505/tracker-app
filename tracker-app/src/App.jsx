@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  FolderPlus, Plus, Upload, Download, Trash2, 
-  Eye, BookOpen, AlertCircle, FileText, CheckCircle, LogOut,
-  Menu, X, Edit2, ChevronLeft, ChevronRight
+  Plus, Upload, Download, Trash2, 
+  Eye, AlertCircle, FileText, LogOut,
+  Menu, X, Edit2, ChevronLeft, ChevronRight,
+  Sun, Sunset, Cloud, CloudOff, RefreshCw, Smartphone
 } from 'lucide-react';
 import { dbService } from './db';
+import { apiClient } from './api/client';
 import FolderNav from './components/FolderNav';
 import Dashboard from './components/Dashboard';
 import TestLoggerModal from './components/TestLoggerModal';
 import PaperViewer from './components/PaperViewer';
 import Login from './components/Login';
 import TestAnalysis from './components/TestAnalysis';
+import MobileApp from './components/mobile/MobileApp';
 
 export default function App() {
   // Check if session token exists in local storage
@@ -32,11 +35,38 @@ export default function App() {
   const [sortField, setSortField] = useState('date');
   
   // Mobile UI state
+  const isCapacitor = typeof window !== 'undefined' && (
+    window.Capacitor !== undefined ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:' ||
+    window.location.protocol === 'content:'
+  );
+
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    if (isCapacitor) return true;
+    return window.innerWidth <= 768;
+  });
+  const [forceMobilePreview, setForceMobilePreview] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (isCapacitor) {
+        setIsMobileViewport(true);
+      } else {
+        setIsMobileViewport(window.innerWidth <= 768);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isCapacitor]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [showTextBackup, setShowTextBackup] = useState(false);
   const [backupText, setBackupText] = useState('');
+  const [syncStatus, setSyncStatus] = useState('synced'); // 'synced' | 'syncing' | 'offline'
   
   const fileInputRef = useRef(null);
 
@@ -49,22 +79,65 @@ export default function App() {
     return () => window.removeEventListener('error', handleError);
   }, []);
 
-  // Load database content on launch
+  // Load database content on launch with background cloud sync
   useEffect(() => {
     if (!isLoggedIn) return;
     
     async function loadData() {
       try {
-        const f = await dbService.getFolders();
-        const t = await dbService.getAllTests();
+        // 1. Instant load from local IndexedDB for snappy UI
+        let f = await dbService.getFolders();
+        let t = await dbService.getAllTests();
+
+        // 2. If IndexedDB was empty, attempt recovery from disk backup
+        if (f.length === 0 && t.length === 0) {
+          await dbService.syncWithDisk();
+          f = await dbService.getFolders();
+          t = await dbService.getAllTests();
+        }
+
         setFolders(f);
         setTests(t);
+
+        // 3. Trigger cloud sync if authenticated
+        if (apiClient.isAuthenticated()) {
+          setSyncStatus('syncing');
+          const syncRes = await dbService.syncWithCloud();
+          if (syncRes && syncRes.success) {
+            const updatedF = await dbService.getFolders();
+            const updatedT = await dbService.getAllTests();
+            setFolders(updatedF);
+            setTests(updatedT);
+            setSyncStatus('synced');
+          } else {
+            setSyncStatus('offline');
+          }
+        }
       } catch (err) {
         console.error('Error initializing database:', err);
+        setSyncStatus('offline');
       }
     }
     loadData();
   }, [isLoggedIn]);
+
+  const handleManualSync = async () => {
+    setSyncStatus('syncing');
+    try {
+      const syncRes = await dbService.syncWithCloud();
+      if (syncRes && syncRes.success) {
+        const f = await dbService.getFolders();
+        const t = await dbService.getAllTests();
+        setFolders(f);
+        setTests(t);
+        setSyncStatus('synced');
+      } else {
+        setSyncStatus('offline');
+      }
+    } catch (e) {
+      setSyncStatus('offline');
+    }
+  };
 
   // Folder Operations
   const handleCreateFolder = async (folder) => {
@@ -167,7 +240,7 @@ export default function App() {
   // Authentication logout
   const handleLogout = () => {
     if (confirm('Are you sure you want to log out?')) {
-      localStorage.removeItem('gate_tracker_auth');
+      apiClient.logout();
       setIsLoggedIn(false);
       setSelectedPaper(null);
       setCurrentView('dashboard');
@@ -209,17 +282,18 @@ export default function App() {
     alert('Backup JSON copied to clipboard!');
   };
 
-  // If not logged in, render the login card
-  if (!isLoggedIn) {
-    return <Login onLogin={() => setIsLoggedIn(true)} />;
-  }
-
   // Filter data: If folder is null, we show ALL tests, else filter by folderId
-  const activeFolder = folders.find(f => f.id === activeFolderId);
+  const activeFolder = React.useMemo(() => {
+    return folders.find(f => f.id === activeFolderId);
+  }, [folders, activeFolderId]);
+
   const isGeneral = activeFolderId === null;
-  const filteredTests = isGeneral 
-    ? tests 
-    : tests.filter(t => t.folderId === activeFolderId);
+
+  const filteredTests = React.useMemo(() => {
+    return isGeneral 
+      ? tests 
+      : tests.filter(t => t.folderId === activeFolderId);
+  }, [tests, isGeneral, activeFolderId]);
 
   // Sort filtered tests
   const sortedAndFiltered = React.useMemo(() => {
@@ -247,6 +321,26 @@ export default function App() {
     const folder = folders.find(f => f.id === folderId);
     return folder ? folder.name : 'Unknown';
   };
+
+  // If not logged in, render the login card
+  if (!isLoggedIn) {
+    return <Login onLogin={() => setIsLoggedIn(true)} />;
+  }
+
+  // Render dedicated mobile companion experience when on mobile viewport or running in Capacitor / forced preview
+  if (isMobileViewport || forceMobilePreview) {
+    return (
+      <MobileApp
+        folders={folders}
+        tests={tests}
+        syncStatus={syncStatus}
+        onManualSync={handleManualSync}
+        onLogout={handleLogout}
+        isPreview={forceMobilePreview && !isMobileViewport}
+        onExitPreview={() => setForceMobilePreview(false)}
+      />
+    );
+  }
 
   return (
     <div className="app-layout">
@@ -315,6 +409,38 @@ export default function App() {
 
         {/* Import / Export / Logout Utility */}
         <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-card)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* Cloud Sync Status / Action */}
+          <button
+            onClick={handleManualSync}
+            disabled={syncStatus === 'syncing'}
+            className="btn btn-secondary"
+            style={{
+              width: '100%',
+              fontSize: '12px',
+              padding: '8px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: syncStatus === 'synced' ? 'rgba(16, 185, 129, 0.08)' : syncStatus === 'syncing' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+              borderColor: syncStatus === 'synced' ? 'rgba(16, 185, 129, 0.3)' : syncStatus === 'syncing' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+            }}
+            title="Click to sync changes with MongoDB Atlas"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {syncStatus === 'synced' ? (
+                <Cloud size={14} style={{ color: '#10b981' }} />
+              ) : syncStatus === 'syncing' ? (
+                <RefreshCw size={14} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <CloudOff size={14} style={{ color: '#ef4444' }} />
+              )}
+              <span style={{ fontWeight: 600 }}>
+                {syncStatus === 'synced' ? 'Cloud: Synced' : syncStatus === 'syncing' ? 'Syncing...' : 'Local / Offline'}
+              </span>
+            </div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Sync</span>
+          </button>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -345,6 +471,15 @@ export default function App() {
           >
             <FileText size={14} />
             <span>Text Backup/Restore</span>
+          </button>
+          <button 
+            onClick={() => setForceMobilePreview(true)} 
+            className="btn btn-secondary" 
+            style={{ width: '100%', fontSize: '12px', padding: '8px 12px' }}
+            title="Preview Android Mobile Companion view"
+          >
+            <Smartphone size={14} />
+            <span>Preview Mobile View</span>
           </button>
           <button 
             onClick={handleLogout} 
@@ -426,6 +561,7 @@ export default function App() {
             {/* Dashboard component */}
             <Dashboard 
               folderName={isGeneral ? 'General Dashboard' : activeFolder.name} 
+              folderId={activeFolderId}
               tests={filteredTests}
               folders={folders}
               isGeneral={isGeneral}
@@ -467,8 +603,7 @@ export default function App() {
                         <th>Marks</th>
                         <th>Accuracy</th>
                         <th>Attempts</th>
-                        <th>Duration</th>
-                        <th>Tags</th>
+                        <th>Rank</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
@@ -482,7 +617,17 @@ export default function App() {
                               </span>
                             </td>
                           )}
-                          <td style={{ fontWeight: '600' }}>{test.title}</td>
+                          <td style={{ fontWeight: '600' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>{test.title}</span>
+                              {test.session === 'morning' && (
+                                <Sun size={14} style={{ color: '#f59e0b', flexShrink: 0 }} title="Morning Session" />
+                              )}
+                              {test.session === 'afternoon' && (
+                                <Sunset size={14} style={{ color: '#f43f5e', flexShrink: 0 }} title="Afternoon Session" />
+                              )}
+                            </div>
+                          </td>
                           <td style={{ color: 'var(--text-muted)' }}>{test.date}</td>
                           <td>
                             <span className="badge badge-success">
@@ -491,16 +636,23 @@ export default function App() {
                           </td>
                           <td style={{ color: 'var(--color-secondary)', fontWeight: '600' }}>{test.accuracy}</td>
                           <td>{test.attempted} / {test.totalQs}</td>
-                          <td>{test.timeTaken} ({test.duration})</td>
                           <td>
-                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                              {test.tags.map((t, idx) => (
-                                <span key={idx} className="badge badge-info" style={{ fontSize: '9px', padding: '2px 6px' }}>
-                                  {t}
+                            {test.rankGot ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: '600' }}>
+                                  {test.rankGot} / {test.totalCandidates || '-'}
                                 </span>
-                              ))}
-                              {test.tags.length === 0 && <span style={{ color: 'var(--text-dark)', fontSize: '12px' }}>-</span>}
-                            </div>
+                                {test.totalCandidates && (
+                                  <span style={{ fontSize: '10px', color: '#ec4899', fontWeight: '500' }}>
+                                    Top {(((test.rankGot / test.totalCandidates) * 100) < 0.01 
+                                      ? ((test.rankGot / test.totalCandidates) * 100).toFixed(4) 
+                                      : ((test.rankGot / test.totalCandidates) * 100).toFixed(2))}%
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-dark)', fontSize: '12px' }}>-</span>
+                            )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>

@@ -13,7 +13,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const dataUrl = reader.result;
-        const cleanTitle = (message.title || 'GATE_Exam_Result')
+        const isGate = /gate/i.test(message.title || '');
+        const defaultTitle = isGate ? 'GATE_Exam_Result' : 'Offline_Page';
+        const cleanTitle = (message.title || defaultTitle)
           .replace(/[^a-z0-9_\-\s]/gi, '_')
           .replace(/\s+/g, '_')
           .trim();
@@ -77,8 +79,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Action 3: Fetch Text (Used for fetching stylesheets cross-origin without CORS)
   if (message.action === 'fetchText') {
-    fetch(message.url)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    fetch(message.url, { signal: controller.signal })
       .then(response => {
+        clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP status ${response.status}`);
         return response.text();
       })
@@ -86,6 +92,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true, data: text });
       })
       .catch(err => {
+        clearTimeout(timeoutId);
         console.error(`Failed to fetch text from ${message.url}:`, err);
         sendResponse({ success: false, error: err.message });
       });
@@ -94,8 +101,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Action 4: Fetch Blob as Base64 (Used for images and fonts cross-origin)
   if (message.action === 'fetchBlob') {
-    fetch(message.url)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    fetch(message.url, { signal: controller.signal })
       .then(response => {
+        clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP status ${response.status}`);
         return response.blob();
       })
@@ -110,6 +121,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         reader.readAsDataURL(blob);
       })
       .catch(err => {
+        clearTimeout(timeoutId);
         console.error(`Failed to fetch blob from ${message.url}:`, err);
         sendResponse({ success: false, error: err.message });
       });

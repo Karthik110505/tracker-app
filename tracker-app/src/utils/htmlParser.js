@@ -1,6 +1,121 @@
 // HTML Parser utility to parse offline-compiled exam result files
 // Extracts titles, marks, and other stats from Netlify offline HTML files
 
+export const difficultyMap = {
+  "2010": { "Single": 70 },
+  "2011": { "Single": 68 },
+  "2012": { "Single": 72 },
+  "2013": { "Single": 78 },
+  "2014": { "Set 1": 74, "Set 2": 76, "Set 3": 73 },
+  "2015": { "Set 1": 75, "Set 2": 77, "Set 3": 74 },
+  "2016": { "Set 1": 72, "Set 2": 74 },
+  "2017": { "Set 1": 64, "Set 2": 66 },
+  "2018": { "Single": 85 },
+  "2019": { "Single": 72 },
+  "2020": { "Single": 68 },
+  "2021": { "Set 1": 70, "Set 2": 75 },
+  "2022": { "Single": 82 },
+  "2023": { "Single": 62 },
+  "2024": { "Set 1": 79, "Set 2": 75 },
+  "2025": { "Set 1": 68, "Set 2": 70 },
+  "2026": { "Set 1": 82, "Set 2": 74 }
+};
+
+export function getDifficultyRating(title) {
+  if (!title) return null;
+  const lowerTitle = title.toLowerCase();
+  
+  const isGate = lowerTitle.includes('gate');
+  const isCse = lowerTitle.includes('cse') || 
+                lowerTitle.includes('computer science') || 
+                lowerTitle.includes('comp. sc.') || 
+                lowerTitle.includes('original paper') || 
+                lowerTitle.includes('pyq') ||
+                (isGate && /\b(20\d{2})\b/.test(lowerTitle));
+  
+  if (!isGate || !isCse) return null;
+  
+  const yearMatch = title.match(/\b(20\d{2})\b/);
+  if (!yearMatch) return null;
+  const year = yearMatch[1];
+  
+  if (!difficultyMap[year]) return null;
+  
+  let set = "Single";
+  const setMatch = title.match(/(?:set|shift|session)\s*([1-3])/i);
+  if (setMatch) {
+    set = `Set ${setMatch[1]}`;
+  }
+  
+  if (difficultyMap[year]["Single"] !== undefined) {
+    return difficultyMap[year]["Single"];
+  }
+  
+  if (difficultyMap[year][set] !== undefined) {
+    return difficultyMap[year][set];
+  }
+  
+  const availableSets = Object.keys(difficultyMap[year]);
+  if (availableSets.length > 0) {
+    return difficultyMap[year][availableSets[0]];
+  }
+  
+  return null;
+}
+
+
+function detectSession(title, htmlText) {
+  const lowerTitle = (title || '').toLowerCase();
+  const lowerHtml = (htmlText || '').toLowerCase();
+  
+  if (lowerTitle.includes('forenoon') || lowerTitle.includes('morning') || lowerTitle.includes(' fn ') ||
+      lowerHtml.includes('forenoon') || lowerHtml.includes('morning') || lowerHtml.includes(' fn ')) {
+    return 'morning';
+  }
+  if (lowerTitle.includes('afternoon') || lowerTitle.includes(' an ') ||
+      lowerHtml.includes('afternoon') || lowerHtml.includes(' an ')) {
+    return 'afternoon';
+  }
+  
+  const amTimeMatch = lowerHtml.match(/\b(0?9|10|11):[0-5]\d\s*am\b/) || 
+                       lowerHtml.match(/\b(0?9|10|11):[0-5]\d\s*(?:start|time|date)\b/) ||
+                       lowerHtml.match(/(?:exam\s+)?start\s*time\s*:\s*0?9\s*:\s*00/);
+  if (amTimeMatch) {
+    return 'morning';
+  }
+  const pmTimeMatch = lowerHtml.match(/\b(0?[1-6]|1[3-8]):[0-5]\d\s*pm\b/) ||
+                       lowerHtml.match(/\b(13|14|15|16):[0-5]\d\b/) ||
+                       lowerHtml.match(/(?:exam\s+)?start\s*time\s*:\s*(?:14|02)\s*:\s*00/);
+  if (pmTimeMatch) {
+    return 'afternoon';
+  }
+  
+  const setMatch = lowerTitle.match(/(?:set|shift|session)\s*([1-3])/);
+  if (setMatch) {
+    const setNum = parseInt(setMatch[1]);
+    if (setNum === 1) return 'morning';
+    if (setNum === 2 || setNum === 3) return 'afternoon';
+  }
+  
+  if (lowerTitle.includes('gate')) {
+    return 'morning';
+  }
+  
+  return null;
+}
+
+
+function normalizeAnswer(ans) {
+  if (!ans) return '';
+  return ans
+    .toLowerCase()
+    .split(/[\s,;\/]+/)
+    .filter(Boolean)
+    .sort()
+    .join(';');
+}
+
+
 function parseQuestionsList(elements, startIndex, isGateOverflow = false) {
   const questions = [];
   let attempted = 0;
@@ -88,41 +203,150 @@ function parseQuestionsList(elements, startIndex, isGateOverflow = false) {
     let scoreEarned = 0;
     let qPenalty = penalty > 0 ? (award / 3) : 0;
     
-    // If it's Marks To All on GATE Overflow, award full marks to everyone
-    const isMTA = isGateOverflow && solEl && (solEl.textContent.includes("Marks To All") || (solEl.querySelector('.res_status_marksToAll') !== null));
+    // If it's Marks To All on GATE Overflow (or N/A grace marks), award full marks to everyone
+    const isMTA = solEl && (
+      solEl.textContent.includes("Marks To All") || 
+      solEl.querySelector('.res_status_marksToAll') !== null ||
+      correctAnswer === 'n/a' ||
+      correctAnswer === 'mta' ||
+      correctAnswer.includes('marks to all')
+    );
     
-    if (isMTA) {
-      isAttempted = true; // MTA counts as correct attempt matching GA summary
-      isCorrect = true;
-      scoreEarned = award;
-    } else if (yourAnswer !== "" && status === "answered") {
-      isAttempted = true;
-      
-      // Exact match
-      if (yourAnswer === correctAnswer) {
-        isCorrect = true;
-        scoreEarned = award;
-      } else {
-        // Check for numerical equivalence (e.g. 5 vs 5.0)
-        const yourNum = parseFloat(yourAnswer);
-        const correctNum = parseFloat(correctAnswer);
-        if (!isNaN(yourNum) && !isNaN(correctNum) && yourNum === correctNum) {
+    if (isGateOverflow && solEl) {
+      const statusEl = solEl.querySelector('.res_status');
+      if (statusEl) {
+        const text = statusEl.textContent.trim().toLowerCase();
+        const className = statusEl.className.toLowerCase();
+        
+        const isIncorrect = className.includes('incorrect') || className.includes('wrong') || text.includes('wrong') || text.includes('incorrect');
+        const isCorrectStatus = !isIncorrect && (className.includes('correct') || text.includes('correct'));
+        const isMTAStatus = className.includes('markstoall') || text.includes('marks to all');
+        
+        if (isIncorrect) {
+          isAttempted = true;
+          isCorrect = false;
+          scoreEarned = -qPenalty;
+        } else if (isCorrectStatus) {
+          isAttempted = true;
+          isCorrect = true;
+          scoreEarned = award;
+        } else if (isMTAStatus) {
+          isAttempted = true;
           isCorrect = true;
           scoreEarned = award;
         } else {
-          // Check for range answers like "5 to 6" or "5:6"
-          const rangeMatch = correctAnswer.match(/([\d\.]+)\s*to\s*([\d\.]+)/);
-          if (rangeMatch) {
-            const min = parseFloat(rangeMatch[1]);
-            const max = parseFloat(rangeMatch[2]);
-            if (!isNaN(yourNum) && yourNum >= min && yourNum <= max) {
+          isAttempted = false;
+          isCorrect = false;
+          scoreEarned = 0;
+        }
+      } else {
+        // Check correctness from style as first choice if statusEl is missing
+        let styleCorrectness = null;
+        if (solEl) {
+          const spans = solEl.querySelectorAll('span');
+          let yourAnswerSpan = null;
+          spans.forEach(span => {
+            if (span.textContent.includes("Your Answer:")) {
+              yourAnswerSpan = span;
+            }
+          });
+          if (yourAnswerSpan) {
+            const styleAttr = yourAnswerSpan.getAttribute('style') || '';
+            const normalizedStyle = styleAttr.replace(/\s+/g, '').toLowerCase();
+            if (
+              normalizedStyle.includes('rgb(212,237,218)') || 
+              normalizedStyle.includes('rgb(40,167,69)') || 
+              normalizedStyle.includes('#d4edda') || 
+              normalizedStyle.includes('#28a745')
+            ) {
+              styleCorrectness = 'correct';
+            } else if (
+              normalizedStyle.includes('rgb(248,215,218)') || 
+              normalizedStyle.includes('rgb(220,53,69)') || 
+              normalizedStyle.includes('#f8d7da') || 
+              normalizedStyle.includes('#dc3545')
+            ) {
+              styleCorrectness = 'incorrect';
+            }
+          }
+        }
+
+        // Fallback if statusEl is missing
+        if (styleCorrectness === 'correct') {
+          isAttempted = true;
+          isCorrect = true;
+          scoreEarned = award;
+        } else if (styleCorrectness === 'incorrect') {
+          isAttempted = true;
+          isCorrect = false;
+          scoreEarned = -qPenalty;
+        } else if (isMTA) {
+          isAttempted = true;
+          isCorrect = true;
+          scoreEarned = award;
+        } else if (yourAnswer !== "" && status === "answered") {
+          isAttempted = true;
+          const normalizedYour = normalizeAnswer(yourAnswer);
+          const normalizedCorrect = normalizeAnswer(correctAnswer);
+          if (yourAnswer === correctAnswer || (normalizedYour !== "" && normalizedYour === normalizedCorrect)) {
+            isCorrect = true;
+            scoreEarned = award;
+          } else {
+            const yourNum = parseFloat(yourAnswer);
+            const correctNum = parseFloat(correctAnswer);
+            if (!isNaN(yourNum) && !isNaN(correctNum) && yourNum === correctNum) {
               isCorrect = true;
               scoreEarned = award;
             } else {
+              const rangeMatch = correctAnswer.match(/([\d\.]+)\s*to\s*([\d\.]+)/);
+              if (rangeMatch) {
+                const min = parseFloat(rangeMatch[1]);
+                const max = parseFloat(rangeMatch[2]);
+                if (!isNaN(yourNum) && yourNum >= min && yourNum <= max) {
+                  isCorrect = true;
+                  scoreEarned = award;
+                } else {
+                  scoreEarned = -qPenalty;
+                }
+              } else {
+                scoreEarned = -qPenalty;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (isMTA) {
+        isAttempted = true;
+        isCorrect = true;
+        scoreEarned = award;
+      } else if (yourAnswer !== "" && status === "answered") {
+        isAttempted = true;
+        const normalizedYour = normalizeAnswer(yourAnswer);
+        const normalizedCorrect = normalizeAnswer(correctAnswer);
+        if (yourAnswer === correctAnswer || (normalizedYour !== "" && normalizedYour === normalizedCorrect)) {
+          isCorrect = true;
+          scoreEarned = award;
+        } else {
+          const yourNum = parseFloat(yourAnswer);
+          const correctNum = parseFloat(correctAnswer);
+          if (!isNaN(yourNum) && !isNaN(correctNum) && yourNum === correctNum) {
+            isCorrect = true;
+            scoreEarned = award;
+          } else {
+            const rangeMatch = correctAnswer.match(/([\d\.]+)\s*to\s*([\d\.]+)/);
+            if (rangeMatch) {
+              const min = parseFloat(rangeMatch[1]);
+              const max = parseFloat(rangeMatch[2]);
+              if (!isNaN(yourNum) && yourNum >= min && yourNum <= max) {
+                isCorrect = true;
+                scoreEarned = award;
+              } else {
+                scoreEarned = -qPenalty;
+              }
+            } else {
               scoreEarned = -qPenalty;
             }
-          } else {
-            scoreEarned = -qPenalty;
           }
         }
       }
@@ -180,6 +404,18 @@ export function calculateExamDetails(htmlText, isGateOverflow = false) {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
+    
+    // Auto-detect isGateOverflow if not explicitly true
+    if (!isGateOverflow) {
+      isGateOverflow = !!doc.querySelector('.exam_summary') || 
+                       !!doc.querySelector('.score-ring') || 
+                       !!doc.querySelector('.user_solution') || 
+                       !!doc.querySelector('.correct_solution') ||
+                       !!doc.querySelector('.res_status') ||
+                       !!doc.querySelector('[class*="res_status_"]') ||
+                       htmlText.includes('res_status_') ||
+                       htmlText.includes('res_status');
+    }
     
     const sectionElements = doc.querySelectorAll('.res_section');
     const sectionsData = [];
@@ -334,7 +570,14 @@ export function parseOfflineHtml(htmlText, selectedSource = 'auto') {
     } else if (selectedSource === 'gatearchive') {
       isGateOverflow = false;
     } else {
-      isGateOverflow = !!doc.querySelector('.exam_summary') || !!doc.querySelector('.score-ring') || !!doc.querySelector('.user_solution') || !!doc.querySelector('.correct_solution');
+      isGateOverflow = !!doc.querySelector('.exam_summary') || 
+                       !!doc.querySelector('.score-ring') || 
+                       !!doc.querySelector('.user_solution') || 
+                       !!doc.querySelector('.correct_solution') ||
+                       !!doc.querySelector('.res_status') ||
+                       !!doc.querySelector('[class*="res_status_"]') ||
+                       htmlText.includes('res_status_') ||
+                       htmlText.includes('res_status');
     }
     
     // Extract title (e.g. "GATE CSE 2012 | Original Paper")
@@ -418,7 +661,9 @@ export function parseOfflineHtml(htmlText, selectedSource = 'auto') {
           duration: durationRaw || '180 Min',
           timeTaken: timeTakenRaw || '0.00 Min',
           accuracy: `${summary.accuracy}%`,
-          percentage: `${((summary.score / (summary.totalMarks || 100)) * 100).toFixed(2)}%`
+          percentage: `${((summary.score / (summary.totalMarks || 100)) * 100).toFixed(2)}%`,
+          difficulty: getDifficultyRating(title),
+          session: detectSession(title, htmlText)
         };
       }
     }
@@ -482,7 +727,9 @@ export function parseOfflineHtml(htmlText, selectedSource = 'auto') {
       duration: durationRaw || '180 Min',
       timeTaken: timeTakenRaw || '0.00 Min',
       accuracy: accuracyRaw || '0%',
-      percentage: '0.00%'
+      percentage: '0.00%',
+      difficulty: getDifficultyRating(title),
+      session: detectSession(title, htmlText)
     };
   } catch (error) {
     console.error('Error parsing offline HTML:', error);

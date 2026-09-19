@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const btnHtml = document.getElementById('btn-html');
   const btnMhtml = document.getElementById('btn-mhtml');
+  const btnNptel = document.getElementById('btn-nptel');
   const btnSettings = document.getElementById('btn-settings');
   const settingsCard = document.getElementById('settings-panel-card');
   const settingAutosave = document.getElementById('setting-autosave');
@@ -20,6 +21,62 @@ document.addEventListener('DOMContentLoaded', () => {
     settingAutosave.checked = items.autosave;
     settingSubfolder.value = items.subfolder;
     checkSubfolderValue(items.subfolder);
+  });
+
+  // Dynamically update UI branding based on current website context
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    if (!tab || !tab.url) return;
+    
+    const isNptelPage = tab.url.includes('seek.nptel.ac.in') || tab.url.includes('nptel.ac.in');
+    
+    if (isNptelPage) {
+      // Show NPTEL button, hide others
+      btnNptel.classList.remove('hidden');
+      btnHtml.classList.add('hidden');
+      btnMhtml.classList.add('hidden');
+      
+      // Modify Header Title
+      const h1 = document.querySelector('.logo-text h1');
+      if (h1) h1.textContent = 'NPTEL Extractor';
+      
+      // Modify Logo Icon
+      const icon = document.querySelector('.logo-icon');
+      if (icon) icon.textContent = '⚡';
+      
+      // Modify Description
+      const description = document.querySelector('.description');
+      if (description) {
+        description.textContent = 'Crawl all questions in this NPTEL mock test and download a unified result file for the Revision Tracker.';
+      }
+      
+      // Update page title
+      document.title = 'NPTEL Results Extractor';
+    } else {
+      const isGatePage = tab.url.includes('gateoverflow.in') || 
+                         tab.url.includes('gate-cs-archive') || 
+                         tab.url.includes('gatearchive') ||
+                         /gate/i.test(tab.title || '') ||
+                         /gate/i.test(tab.url);
+                         
+      if (!isGatePage) {
+        // Modify Header Title
+        const h1 = document.querySelector('.logo-text h1');
+        if (h1) h1.textContent = 'Web Offline';
+        
+        // Modify Logo Icon
+        const icon = document.querySelector('.logo-icon');
+        if (icon) icon.textContent = '🌐';
+        
+        // Modify Description
+        const description = document.querySelector('.description');
+        if (description) {
+          description.textContent = 'Save this web page offline. All images, styles, fonts, and formatting will be embedded directly into the file.';
+        }
+        
+        // Update page title
+        document.title = 'Web Offline Saver';
+      }
+    }
   });
 
   // Toggle settings panel
@@ -216,6 +273,75 @@ document.addEventListener('DOMContentLoaded', () => {
       showStatus('Error', err.message || 'An unexpected error occurred.', 100);
       btnHtml.disabled = false;
       btnMhtml.disabled = false;
+    }
+  });
+
+  // Extract NPTEL Results Button Action
+  btnNptel.addEventListener('click', async () => {
+    try {
+      const tab = await getActiveTab();
+      if (!tab || !tab.id) {
+        showStatus('Error', 'Unable to access current tab.', 100);
+        return;
+      }
+
+      // Fetch latest settings
+      const settings = await new Promise((resolve) => {
+        chrome.storage.local.get({ autosave: false, subfolder: '' }, resolve);
+      });
+
+      showStatus('Starting Extraction', 'Initializing crawler components...', 5);
+      btnHtml.disabled = true;
+      btnMhtml.disabled = true;
+      btnNptel.disabled = true;
+
+      // Listen for progress messages from the content script
+      const messageListener = (message, sender) => {
+        if (sender.tab && sender.tab.id === tab.id) {
+          if (message.type === 'progress') {
+            showStatus('Crawling...', message.text, message.percent);
+          } else if (message.type === 'success') {
+            showStatus('Completed!', `Saved NPTEL Results: ${message.filename}`, 100, true);
+            cleanup();
+          } else if (message.type === 'error') {
+            showStatus('Crawling Failed', message.text, 100);
+            cleanup();
+          }
+        }
+      };
+
+      chrome.runtime.onMessage.addListener(messageListener);
+
+      const cleanup = () => {
+        chrome.runtime.onMessage.removeListener(messageListener);
+        btnHtml.disabled = false;
+        btnMhtml.disabled = false;
+        btnNptel.disabled = false;
+      };
+
+      // Inject the content script
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+
+      // Send the start message along with custom settings
+      chrome.tabs.sendMessage(tab.id, { 
+        action: 'extractNPTELResults',
+        settings: settings
+      }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          showStatus('Error', 'Failed to connect. Try refreshing the page.', 100);
+          cleanup();
+        }
+      });
+
+    } catch (err) {
+      showStatus('Error', err.message || 'An unexpected error occurred.', 100);
+      btnHtml.disabled = false;
+      btnMhtml.disabled = false;
+      btnNptel.disabled = false;
     }
   });
 });

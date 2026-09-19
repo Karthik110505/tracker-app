@@ -496,3 +496,7 @@ input:checked + .slider:before {
     filter: drop-shadow(0 0 12px var(--primary-glow));
   }
 }
+
+.hidden {
+  display: none !important;
+}

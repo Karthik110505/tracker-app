@@ -1,12 +1,19 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { parseOfflineHtml } from '../utils/htmlParser';
+import { UploadCloud, X, AlertCircle, CheckCircle, Sun, Sunset, Clock } from 'lucide-react';
+import { parseOfflineHtml, getDifficultyRating, difficultyMap } from '../utils/htmlParser';
 
 export default function TestLoggerModal({ folderId, folders, onClose, onSave, editTest }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState({ type: '', message: '' });
   const [parserSource, setParserSource] = useState('auto');
   const fileInputRef = useRef(null);
+
+  // Helper to extract year/shift for initial form load
+  const initialYear = editTest ? (editTest.title.match(/\b(20\d{2})\b/)?.[1] || '') : '';
+  const initialShiftMatch = editTest ? editTest.title.match(/(?:set|shift|session)\s*([1-3])/i) : null;
+  const initialShift = editTest ? (initialShiftMatch ? `Set ${initialShiftMatch[1]}` : (editTest.title.toUpperCase().includes('GATE') && !initialShiftMatch ? 'Single' : '')) : '';
+
+  const paperHtmlRef = useRef(editTest ? editTest.paperHtml : '');
 
   // Form Fields State
   const [formData, setFormData] = useState({
@@ -25,8 +32,54 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
     accuracy: editTest ? editTest.accuracy : '',
     notes: editTest ? editTest.notes : '',
     tags: editTest && editTest.tags ? editTest.tags.join(', ') : '',
-    paperHtml: editTest ? editTest.paperHtml : ''
+    difficulty: editTest && editTest.difficulty !== undefined && editTest.difficulty !== null ? editTest.difficulty.toString() : '',
+    gateYear: initialYear,
+    gateShift: initialShift,
+    rankGot: editTest && editTest.rankGot !== undefined && editTest.rankGot !== null ? editTest.rankGot.toString() : '',
+    totalCandidates: editTest && editTest.totalCandidates !== undefined && editTest.totalCandidates !== null ? editTest.totalCandidates.toString() : '',
+    session: editTest ? (editTest.session || '') : ''
   });
+
+  const selectedFolder = folders.find(f => f.id === formData.folderId);
+  const isGateCategory = selectedFolder && selectedFolder.name.toUpperCase() === 'GATE';
+
+  const handleGateChange = (name, value) => {
+    setFormData(prev => {
+      const nextData = { ...prev, [name]: value };
+      
+      // Auto-set shift options if year changed and shift is invalid
+      let shift = nextData.gateShift;
+      if (name === 'gateYear') {
+        const available = difficultyMap[value] ? Object.keys(difficultyMap[value]) : [];
+        if (available.length > 0 && !available.includes(shift)) {
+          shift = available.includes('Single') ? 'Single' : available[0];
+          nextData.gateShift = shift;
+        }
+      }
+      
+      // Auto-update difficulty
+      let mappedDifficulty = '';
+      if (nextData.gateYear && nextData.gateShift) {
+        const diffVal = difficultyMap[nextData.gateYear]?.[nextData.gateShift];
+        if (diffVal !== undefined) {
+          mappedDifficulty = diffVal.toString();
+        }
+      }
+      nextData.difficulty = mappedDifficulty;
+      
+      // Auto-update title if it's currently empty or has the format of a GATE original paper
+      const isOriginalFormat = !prev.title || 
+                               prev.title.toLowerCase().startsWith('gate cse') || 
+                               prev.title.toLowerCase().includes('original paper');
+                               
+      if (isOriginalFormat && nextData.gateYear && nextData.gateShift) {
+        const setPart = nextData.gateShift === 'Single' ? '' : ` | ${nextData.gateShift}`;
+        nextData.title = `GATE CSE ${nextData.gateYear}${setPart} | Original Paper`;
+      }
+      
+      return nextData;
+    });
+  };
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -71,6 +124,11 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
       const parsed = parseOfflineHtml(htmlText, parserSource);
 
       if (parsed.success) {
+        const parsedYear = parsed.title.match(/\b(20\d{2})\b/)?.[1] || '';
+        const parsedShiftMatch = parsed.title.match(/(?:set|shift|session)\s*([1-3])/i);
+        const parsedShift = parsedShiftMatch ? `Set ${parsedShiftMatch[1]}` : (parsed.title.toUpperCase().includes('GATE') ? 'Single' : '');
+
+        paperHtmlRef.current = htmlText; // Store the full paper content in ref!
         setFormData(prev => ({
           ...prev,
           title: parsed.title,
@@ -84,7 +142,10 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
           duration: parsed.duration,
           timeTaken: parsed.timeTaken,
           accuracy: parsed.accuracy,
-          paperHtml: htmlText // Store the full paper content!
+          difficulty: parsed.difficulty !== null && parsed.difficulty !== undefined ? parsed.difficulty.toString() : '',
+          gateYear: parsedYear,
+          gateShift: parsedShift,
+          session: parsed.session || ''
         }));
         
         setUploadStatus({
@@ -154,12 +215,16 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
       correct: parseInt(formData.correct) || 0,
       incorrect: parseInt(formData.incorrect) || 0,
       notAttempted: parseInt(formData.notAttempted) || 0,
-      duration: formData.duration,
+      duration: formData.duration || '180 Min',
       timeTaken: formData.timeTaken || '180 Min',
       accuracy: accuracyStr || '0%',
       notes: formData.notes.trim(),
-      tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean),
-      paperHtml: formData.paperHtml
+      tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      paperHtml: paperHtmlRef.current,
+      difficulty: formData.difficulty !== '' ? parseFloat(formData.difficulty) : getDifficultyRating(formData.title.trim()),
+      rankGot: formData.rankGot !== '' ? parseInt(formData.rankGot) : null,
+      totalCandidates: formData.totalCandidates !== '' ? parseInt(formData.totalCandidates) : null,
+      session: formData.session || null
     };
 
     onSave(testRecord);
@@ -190,8 +255,8 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
       <form onSubmit={handleSubmit}>
         
         {/* Exam Platform/HTML Source Selector */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block', color: 'var(--text-muted)' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Exam Results HTML Source Platform
           </label>
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -202,11 +267,12 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
                   flex: 1, 
                   display: 'flex', 
                   alignItems: 'center', 
+                  justifyContent: 'center',
                   gap: '8px', 
-                  padding: '10px 14px', 
-                  background: parserSource === source ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255, 255, 255, 0.02)', 
-                  border: parserSource === source ? '1px solid var(--color-primary)' : '1px solid var(--border-card)', 
-                  borderRadius: '8px', 
+                  padding: '12px 14px', 
+                  background: parserSource === source ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)', 
+                  border: parserSource === source ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)', 
+                  borderRadius: '10px', 
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: parserSource === source ? '600' : 'normal',
@@ -220,7 +286,7 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
                   value={source} 
                   checked={parserSource === source} 
                   onChange={() => setParserSource(source)} 
-                  style={{ accentColor: 'var(--color-primary)' }}
+                  style={{ display: 'none' }}
                 />
                 <span>
                   {source === 'auto' && '🔍 Auto-Detect'}
@@ -294,6 +360,51 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
             </select>
           </div>
 
+          {isGateCategory && (
+            <>
+              <div className="form-group">
+                <label>GATE Year *</label>
+                <select
+                  name="gateYear"
+                  value={formData.gateYear}
+                  onChange={(e) => handleGateChange('gateYear', e.target.value)}
+                  className="form-input"
+                  required
+                >
+                  <option value="" disabled>-- Select Year --</option>
+                  {Object.keys(difficultyMap).sort((a,b)=>b-a).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>GATE Shift / Set *</label>
+                <select
+                  name="gateShift"
+                  value={formData.gateShift}
+                  onChange={(e) => handleGateChange('gateShift', e.target.value)}
+                  className="form-input"
+                  required
+                >
+                  <option value="" disabled>-- Select Shift --</option>
+                  {formData.gateYear && difficultyMap[formData.gateYear] ? (
+                    Object.keys(difficultyMap[formData.gateYear]).map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Single">Single</option>
+                      <option value="Set 1">Set 1</option>
+                      <option value="Set 2">Set 2</option>
+                      <option value="Set 3">Set 3</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </>
+          )}
+
           <div className="form-group form-group-full">
             <label>Exam Title *</label>
             <input
@@ -319,13 +430,65 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
           </div>
 
           <div className="form-group">
-            <label>Exam Duration (e.g. 180 Min)</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={16} /> Session
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, session: prev.session === 'morning' ? '' : 'morning' }))}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px 10px',
+                  background: formData.session === 'morning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                  border: formData.session === 'morning' ? '1px solid #f59e0b' : '1px solid var(--border-card)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  color: formData.session === 'morning' ? '#f59e0b' : 'var(--text-muted)',
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+                title="Morning Session"
+              >
+                <Sun size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, session: prev.session === 'afternoon' ? '' : 'afternoon' }))}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px 10px',
+                  background: formData.session === 'afternoon' ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                  border: formData.session === 'afternoon' ? '1px solid #f43f5e' : '1px solid var(--border-card)',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  color: formData.session === 'afternoon' ? '#f43f5e' : 'var(--text-muted)',
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+                title="Afternoon Session"
+              >
+                <Sunset size={20} />
+              </button>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Rank Obtained</label>
             <input
-              type="text"
-              name="duration"
-              value={formData.duration}
+              type="number"
+              name="rankGot"
+              value={formData.rankGot}
               onChange={handleInputChange}
+              placeholder="e.g. 12"
               className="form-input"
+              min="1"
             />
           </div>
 
@@ -350,6 +513,20 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
               value={formData.totalMarks}
               onChange={handleInputChange}
               className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Difficulty Rating (out of 100)</label>
+            <input
+              type="number"
+              name="difficulty"
+              value={formData.difficulty}
+              onChange={handleInputChange}
+              placeholder="e.g. 70"
+              className="form-input"
+              min="0"
+              max="100"
             />
           </div>
 
@@ -413,14 +590,15 @@ export default function TestLoggerModal({ folderId, folders, onClose, onSave, ed
           </div>
 
           <div className="form-group">
-            <label>Subject / Topic Tags (comma-separated)</label>
+            <label>Total Participated</label>
             <input
-              type="text"
-              name="tags"
-              value={formData.tags}
+              type="number"
+              name="totalCandidates"
+              value={formData.totalCandidates}
               onChange={handleInputChange}
-              placeholder="e.g. OS, Subnetting, Dijkstra"
+              placeholder="e.g. 150000"
               className="form-input"
+              min="1"
             />
           </div>
 

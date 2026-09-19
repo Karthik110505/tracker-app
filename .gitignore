@@ -1,15 +1,17 @@
 # Ignore Node dependencies
 tracker-app/node_modules/
 tracker-app/dist/
+server/node_modules/
 node_modules/
 dist/
 
 # Local env files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+server/.env
+server/.env.*
+tracker-app/.env
+tracker-app/.env.*
 
 # OS files
 .DS_Store
@@ -23,3 +25,10 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Build outputs & binaries
+*.apk
+*.aab
+.gradle/
+build/
+

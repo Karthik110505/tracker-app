@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: gate-tracker-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_DB_NAME
+        value: gate_tracker
+      - key: MONGODB_URI
+        sync: false # Set securely in Render dashboard
+      - key: JWT_SECRET
+        sync: false # Set securely in Render dashboard
+      - key: JWT_EXPIRES_IN
+        value: 30d

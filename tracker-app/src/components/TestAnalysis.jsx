@@ -38,6 +38,22 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
     }
   };
 
+  const [selectedSection, setSelectedSection] = useState('all');
+
+  const activeSummary = useMemo(() => {
+    if (!analysis || !analysis.success) return null;
+    if (selectedSection === 'all') return analysis.summary;
+    const sec = analysis.sections.find(s => s.name === selectedSection);
+    return sec ? sec.summary : analysis.summary;
+  }, [analysis, selectedSection]);
+
+  const activeQuestions = useMemo(() => {
+    if (!analysis || !analysis.success) return [];
+    if (selectedSection === 'all') return analysis.questions;
+    const sec = analysis.sections.find(s => s.name === selectedSection);
+    return sec ? sec.questions : analysis.questions;
+  }, [analysis, selectedSection]);
+
   if (!analysis || !analysis.success) {
     return (
       <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
@@ -52,20 +68,6 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
       </div>
     );
   }
-
-  const [selectedSection, setSelectedSection] = useState('all');
-
-  const activeSummary = useMemo(() => {
-    if (selectedSection === 'all') return analysis.summary;
-    const sec = analysis.sections.find(s => s.name === selectedSection);
-    return sec ? sec.summary : analysis.summary;
-  }, [analysis, selectedSection]);
-
-  const activeQuestions = useMemo(() => {
-    if (selectedSection === 'all') return analysis.questions;
-    const sec = analysis.sections.find(s => s.name === selectedSection);
-    return sec ? sec.questions : analysis.questions;
-  }, [analysis, selectedSection]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'slideUp 0.3s ease-out' }}>
@@ -90,11 +92,11 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
 
       {/* Section Navigation Tabs */}
       {analysis.sections && analysis.sections.length > 1 && (
-        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-card)', paddingBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '16px', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setSelectedSection('all')}
             className={`btn ${selectedSection === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '8px' }}
+            style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '20px' }}
           >
             Total Paper
           </button>
@@ -103,7 +105,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
               key={idx}
               onClick={() => setSelectedSection(sec.name)}
               className={`btn ${selectedSection === sec.name ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '8px' }}
+              style={{ padding: '8px 16px', fontSize: '13px', borderRadius: '20px' }}
             >
               {sec.name}
             </button>
@@ -115,7 +117,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
       <div className="stats-grid">
         
         {/* Score Card */}
-        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-primary)' }}>
+        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-primary)', boxShadow: '0 8px 24px rgba(59, 130, 246, 0.04)' }}>
           <div className="stat-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-primary)' }}>
             <Award size={22} />
           </div>
@@ -126,7 +128,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
         </div>
 
         {/* Accuracy Card */}
-        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-success)' }}>
+        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-success)', boxShadow: '0 8px 24px rgba(16, 185, 129, 0.04)' }}>
           <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
             <Percent size={22} />
           </div>
@@ -137,7 +139,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
         </div>
 
         {/* Attempt Rate Card */}
-        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-warning)' }}>
+        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-warning)', boxShadow: '0 8px 24px rgba(245, 158, 11, 0.04)' }}>
           <div className="stat-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
             <Target size={22} />
           </div>
@@ -148,7 +150,7 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
         </div>
 
         {/* Max Obtainable Marks Card */}
-        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-secondary)' }}>
+        <div className="glass-card stat-card" style={{ borderLeft: '4px solid var(--color-secondary)', boxShadow: '0 8px 24px rgba(139, 92, 246, 0.04)' }}>
           <div className="stat-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.1)', color: 'var(--color-secondary)' }}>
             <FileText size={22} />
           </div>
@@ -162,34 +164,34 @@ export default function TestAnalysis({ test, onClose, onSaveNotes }) {
 
       {/* Score Breakdown Summary Card */}
       <div className="glass-card" style={{ padding: '24px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>Detailed Score Breakdown</h3>
+        <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Detailed Score Breakdown</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           
-          <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
+          <div style={{ padding: '16px', background: 'rgba(3, 5, 11, 0.4)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', textAlign: 'center' }}>
             <div style={{ color: 'var(--color-success)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <CheckCircle size={18} />
               {activeSummary.correct}
             </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Correct Answers</div>
-            <div style={{ color: 'var(--color-success)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>+{activeSummary.awardedMarks.toFixed(2)} Marks</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px', fontWeight: '500' }}>Correct Answers</div>
+            <div style={{ color: 'var(--color-success)', fontSize: '11px', fontWeight: '700', marginTop: '2px' }}>+{activeSummary.awardedMarks.toFixed(2)} Marks</div>
           </div>
 
-          <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
+          <div style={{ padding: '16px', background: 'rgba(3, 5, 11, 0.4)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', textAlign: 'center' }}>
             <div style={{ color: 'var(--color-danger)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <XCircle size={18} />
               {activeSummary.incorrect}
             </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Incorrect Answers</div>
-            <div style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>-{activeSummary.penaltyMarks.toFixed(2)} Penalty</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px', fontWeight: '500' }}>Incorrect Answers</div>
+            <div style={{ color: 'var(--color-danger)', fontSize: '11px', fontWeight: '700', marginTop: '2px' }}>-{activeSummary.penaltyMarks.toFixed(2)} Penalty</div>
           </div>
 
-          <div style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-card)', borderRadius: '10px', textAlign: 'center' }}>
+          <div style={{ padding: '16px', background: 'rgba(3, 5, 11, 0.4)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', textAlign: 'center' }}>
             <div style={{ color: 'var(--text-muted)', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <HelpCircle size={18} />
               {activeSummary.unattempted}
             </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>Unattempted Questions</div>
-            <div style={{ color: 'var(--text-dark)', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>0.00 Marks</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px', fontWeight: '500' }}>Unattempted Questions</div>
+            <div style={{ color: 'var(--text-dark)', fontSize: '11px', fontWeight: '700', marginTop: '2px' }}>0.00 Marks</div>
           </div>
 
         </div>
