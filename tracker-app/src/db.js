@@ -71,7 +71,17 @@ export const dbService = {
   // --- CLOUD SYNC & OFFLINE PROTOCOL ---
   async syncWithCloud() {
     if (!apiClient.isAuthenticated()) {
-      return { success: false, reason: 'unauthenticated' };
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('gate_tracker_auth') === 'true') {
+        try {
+          console.log('🔄 [SYNC] Acquiring cloud session token for user karthik...');
+          await apiClient.login('Karthik@1155', 'karthik');
+        } catch (authErr) {
+          console.warn('⚠️ [SYNC] Unable to authenticate with cloud (server asleep or offline):', authErr.message);
+          return { success: false, reason: 'unauthenticated' };
+        }
+      } else {
+        return { success: false, reason: 'unauthenticated' };
+      }
     }
 
     try {
@@ -88,7 +98,9 @@ export const dbService = {
 
       // 2. Reconcile unpushed local tests to cloud
       const currentLocalTests = await this.getAllTests();
+      const currentLocalFolders = await this.getFolders();
       const cloudTestsList = await apiClient.getTests();
+      const cloudFoldersList = await apiClient.getFolders();
       const cloudTestIdMap = new Map((cloudTestsList || []).map(t => [String(t.id), t]));
 
       const unpushedTests = currentLocalTests.filter(t => !t.deletedAt && !cloudTestIdMap.has(String(t.id)));
@@ -97,7 +109,7 @@ export const dbService = {
         await apiClient.pushSync([], unpushedTests);
       }
 
-      // 3. Reconcile any missing cloud tests to local IndexedDB (e.g., Android receiving newly added tests)
+      // 3. Reconcile any missing cloud tests into local IndexedDB (e.g., Android receiving newly added tests)
       const localTestIdMap = new Map(currentLocalTests.map(t => [String(t.id), t]));
       const missingFromLocal = (cloudTestsList || []).filter(ct => !localTestIdMap.has(String(ct.id)));
       if (missingFromLocal.length > 0) {
@@ -110,6 +122,22 @@ export const dbService = {
         await new Promise((res) => {
           tTx.oncomplete = () => res();
           tTx.onerror = () => res();
+        });
+      }
+
+      // Reconcile any missing cloud folders into local IndexedDB
+      const localFolderIdMap = new Map(currentLocalFolders.map(f => [String(f.id), f]));
+      const missingFoldersFromLocal = (cloudFoldersList || []).filter(cf => !localFolderIdMap.has(String(cf.id)));
+      if (missingFoldersFromLocal.length > 0) {
+        console.log(`📥 [SYNC] Pulling ${missingFoldersFromLocal.length} missing cloud folders into local IndexedDB...`);
+        const fTx = db.transaction('folders', 'readwrite');
+        const fStore = fTx.objectStore('folders');
+        for (const missingFolder of missingFoldersFromLocal) {
+          fStore.put(missingFolder);
+        }
+        await new Promise((res) => {
+          fTx.oncomplete = () => res();
+          fTx.onerror = () => res();
         });
       }
 

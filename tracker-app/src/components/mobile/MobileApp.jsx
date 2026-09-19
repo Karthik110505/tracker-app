@@ -89,9 +89,9 @@ export default function MobileApp({
       setInternalFolders(f);
       setInternalTests(t);
 
-      // Now trigger cloud sync if authenticated and online
-      if (apiClient.isAuthenticated() && navigator.onLine) {
-        setInternalSyncStatus('syncing');
+      // Trigger cloud sync to pull down updates (including new tests added on desktop)
+      setInternalSyncStatus('syncing');
+      try {
         const syncRes = await dbService.syncWithCloud();
         if (syncRes && syncRes.success) {
           const updatedF = await dbService.getFolders();
@@ -102,6 +102,9 @@ export default function MobileApp({
         } else {
           setInternalSyncStatus('offline');
         }
+      } catch (syncErr) {
+        console.warn('[MOBILE SYNC] Deferred:', syncErr.message);
+        setInternalSyncStatus('offline');
       }
     } catch (err) {
       console.error('[MOBILE INIT ERROR]:', err);
@@ -114,6 +117,8 @@ export default function MobileApp({
       await dbService.saveTest(newTest);
       const updatedT = await dbService.getAllTests();
       setInternalTests(updatedT);
+      // Trigger background sync to cloud
+      dbService.syncWithCloud().catch(err => console.warn('Background sync after test save on mobile:', err.message));
       return true;
     } catch (err) {
       console.error('Error saving new test on mobile:', err);
