@@ -2,34 +2,53 @@ import React, { useState, useEffect, useRef } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { 
   LayoutDashboard, BookOpen, TrendingUp, FolderTree, 
-  Cloud, CloudOff, RefreshCw, Settings, LogOut, WifiOff 
+  Cloud, CloudOff, RefreshCw, Settings, LogOut, WifiOff, Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { dbService } from '../../db';
+import { apiClient } from '../../api/client';
+import { DEFAULT_MOBILE_DATA } from './defaultMobileData';
 import MobileHome from './MobileHome';
 import MobileTestList from './MobileTestList';
 import MobileAnalytics from './MobileAnalytics';
 import MobileCategories from './MobileCategories';
 import MobileTestDetail from './MobileTestDetail';
+import MobileTestLoggerModal from './MobileTestLoggerModal';
 import MobileSettingsModal from './MobileSettingsModal';
+import MobileLogin from './MobileLogin';
 
 export default function MobileApp({
-  folders = [],
-  tests = [],
-  syncStatus = 'synced',
-  onManualSync,
-  onLogout,
+  folders: propFolders,
+  tests: propTests,
+  syncStatus: propSyncStatus,
+  onManualSync: propManualSync,
+  onLogout: propLogout,
   onExitPreview,
   isPreview = false
 }) {
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return localStorage.getItem('gate_tracker_auth') === 'true';
+  });
+
+  const [internalFolders, setInternalFolders] = useState([]);
+  const [internalTests, setInternalTests] = useState([]);
+  const [internalSyncStatus, setInternalSyncStatus] = useState('synced'); // 'synced' | 'syncing' | 'offline'
+
+  const folders = propFolders || internalFolders;
+  const tests = propTests || internalTests;
+  const syncStatus = propSyncStatus || internalSyncStatus;
+
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'tests' | 'analytics' | 'categories'
   const [selectedTest, setSelectedTest] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLoggerModal, setShowLoggerModal] = useState(false);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(null);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   // Synchronous refs to access latest navigation state in Capacitor backButton listener
   const selectedTestRef = useRef(selectedTest);
   const showSettingsRef = useRef(showSettings);
+  const showLoggerModalRef = useRef(showLoggerModal);
   const activeTabRef = useRef(activeTab);
   const selectedCategoryFilterRef = useRef(selectedCategoryFilter);
 
@@ -42,12 +61,97 @@ export default function MobileApp({
   }, [showSettings]);
 
   useEffect(() => {
+    showLoggerModalRef.current = showLoggerModal;
+  }, [showLoggerModal]);
+
+  useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
 
   useEffect(() => {
     selectedCategoryFilterRef.current = selectedCategoryFilter;
   }, [selectedCategoryFilter]);
+
+  // Load local data and trigger cloud sync
+  const loadLocalDataAndSync = async () => {
+    try {
+      let f = await dbService.getFolders();
+      let t = await dbService.getAllTests();
+
+      // Direct offline seed: Ensure all 20 tests and 3 categories are loaded directly into IndexedDB
+      if (t.length < DEFAULT_MOBILE_DATA.tests.length || f.length < DEFAULT_MOBILE_DATA.folders.length) {
+        console.log(`[MOBILE DIRECT SEED] Local count: ${t.length} tests, ${f.length} folders. Seeding all ${DEFAULT_MOBILE_DATA.tests.length} bundled tests...`);
+        await dbService.seedDefaultData(DEFAULT_MOBILE_DATA.folders, DEFAULT_MOBILE_DATA.tests);
+        f = await dbService.getFolders();
+        t = await dbService.getAllTests();
+      }
+
+      setInternalFolders(f);
+      setInternalTests(t);
+
+      // Now trigger cloud sync if authenticated and online
+      if (apiClient.isAuthenticated() && navigator.onLine) {
+        setInternalSyncStatus('syncing');
+        const syncRes = await dbService.syncWithCloud();
+        if (syncRes && syncRes.success) {
+          const updatedF = await dbService.getFolders();
+          const updatedT = await dbService.getAllTests();
+          setInternalFolders(updatedF);
+          setInternalTests(updatedT);
+          setInternalSyncStatus('synced');
+        } else {
+          setInternalSyncStatus('offline');
+        }
+      }
+    } catch (err) {
+      console.error('[MOBILE INIT ERROR]:', err);
+      setInternalSyncStatus('offline');
+    }
+  };
+
+  const handleSaveNewTest = async (newTest) => {
+    try {
+      await dbService.saveTest(newTest);
+      const updatedT = await dbService.getAllTests();
+      setInternalTests(updatedT);
+      return true;
+    } catch (err) {
+      console.error('Error saving new test on mobile:', err);
+      throw err;
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && !propTests) {
+      loadLocalDataAndSync();
+    }
+  }, [isLoggedIn]);
+
+  const handleManualSync = async () => {
+    if (propManualSync) {
+      return propManualSync();
+    }
+    setInternalSyncStatus('syncing');
+    try {
+      const syncRes = await dbService.syncWithCloud();
+      const updatedF = await dbService.getFolders();
+      const updatedT = await dbService.getAllTests();
+      setInternalFolders(updatedF);
+      setInternalTests(updatedT);
+      setInternalSyncStatus(syncRes && syncRes.success ? 'synced' : 'offline');
+    } catch (e) {
+      setInternalSyncStatus('offline');
+    }
+  };
+
+  const handleLogout = () => {
+    if (propLogout) {
+      return propLogout();
+    }
+    apiClient.logout();
+    localStorage.removeItem('gate_tracker_auth');
+    setIsLoggedIn(false);
+  };
 
   // Hardware/System Android Back Button Handler
   useEffect(() => {
@@ -56,6 +160,12 @@ export default function MobileApp({
     async function registerBackButton() {
       try {
         backListenerHandle = await CapacitorApp.addListener('backButton', () => {
+          // 0. If Test Logger modal is open: close it
+          if (showLoggerModalRef.current) {
+            setShowLoggerModal(false);
+            return;
+          }
+
           // 1. If Test Details modal is open: close it and stay in tests list
           if (selectedTestRef.current) {
             setSelectedTest(null);
@@ -100,7 +210,10 @@ export default function MobileApp({
 
   // Monitor network status
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      handleManualSync();
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
@@ -117,6 +230,18 @@ export default function MobileApp({
       setSelectedCategoryFilter(folderId);
     }
   };
+
+  // If user is unauthenticated on mobile, show dedicated MobileLogin
+  if (!isLoggedIn) {
+    return (
+      <MobileLogin 
+        onLogin={() => {
+          setIsLoggedIn(true);
+          loadLocalDataAndSync();
+        }} 
+      />
+    );
+  }
 
   return (
     <div style={{
@@ -144,7 +269,7 @@ export default function MobileApp({
         }}>
           <span>📱 Mobile Preview Mode (Capacitor Android Companion)</span>
           <button
-            onClick={onExitPreview}
+            onClick={onExitPreview || (() => { window.location.href = '/'; })}
             style={{
               backgroundColor: '#4f46e5',
               color: '#ffffff',
@@ -203,7 +328,7 @@ export default function MobileApp({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Live Sync Pill */}
           <button
-            onClick={onManualSync}
+            onClick={handleManualSync}
             disabled={syncStatus === 'syncing'}
             style={{
               display: 'flex',
@@ -254,7 +379,7 @@ export default function MobileApp({
 
           {/* Logout button */}
           <button
-            onClick={onLogout}
+            onClick={handleLogout}
             style={{
               background: 'rgba(239, 68, 68, 0.1)',
               border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -308,6 +433,7 @@ export default function MobileApp({
                 folders={folders}
                 onSelectTest={setSelectedTest}
                 onNavigateTab={handleTabChange}
+                onOpenLogger={() => setShowLoggerModal(true)}
               />
             </motion.div>
           )}
@@ -325,6 +451,7 @@ export default function MobileApp({
                 folders={folders}
                 initialFolderId={selectedCategoryFilter}
                 onSelectTest={setSelectedTest}
+                onOpenLogger={() => setShowLoggerModal(true)}
               />
             </motion.div>
           )}
@@ -363,6 +490,36 @@ export default function MobileApp({
           )}
         </AnimatePresence>
       </main>
+
+      {/* --- FLOATING ACTION BUTTON: LOG TEST --- */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.92 }}
+        onClick={() => setShowLoggerModal(true)}
+        aria-label="Log new test"
+        style={{
+          position: 'fixed',
+          right: '18px',
+          bottom: 'calc(74px + env(safe-area-inset-bottom, 0px))',
+          zIndex: 45,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '12px 18px',
+          borderRadius: '30px',
+          background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+          color: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          boxShadow: '0 8px 25px rgba(99, 102, 241, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+          cursor: 'pointer',
+          fontWeight: 700,
+          fontSize: '13px',
+          letterSpacing: '0.3px'
+        }}
+      >
+        <Plus size={18} strokeWidth={2.5} />
+        <span>Log Test</span>
+      </motion.button>
 
       {/* --- FIXED BOTTOM NAVIGATION BAR --- */}
       <nav style={{
@@ -446,12 +603,23 @@ export default function MobileApp({
         )}
       </AnimatePresence>
 
+      {/* --- TEST LOGGER MODAL --- */}
+      <AnimatePresence>
+        {showLoggerModal && (
+          <MobileTestLoggerModal
+            folders={folders}
+            onClose={() => setShowLoggerModal(false)}
+            onSave={handleSaveNewTest}
+          />
+        )}
+      </AnimatePresence>
+
       {/* --- CONNECTION SETTINGS MODAL --- */}
       <AnimatePresence>
         {showSettings && (
           <MobileSettingsModal
             onClose={() => setShowSettings(false)}
-            onSyncTrigger={onManualSync}
+            onSyncTrigger={handleManualSync}
           />
         )}
       </AnimatePresence>

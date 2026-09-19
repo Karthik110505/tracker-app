@@ -3,18 +3,28 @@
 const TOKEN_KEY = 'gate_tracker_jwt';
 const API_URL_KEY = 'gate_tracker_api_base_url';
 
+export const DEFAULT_PUBLIC_API_URL = 'https://gate-tracker-api.onrender.com/api';
+export const EMULATOR_API_URL = 'http://10.0.2.2:5000/api';
+
 export function getApiBaseUrl() {
   const customUrl = localStorage.getItem(API_URL_KEY);
   if (customUrl) return customUrl.replace(/\/$/, '');
 
+  // If inside Capacitor Android native app
+  const isNative = typeof window !== 'undefined' && (
+    window.Capacitor !== undefined ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:' ||
+    window.location.protocol === 'content:'
+  );
+
+  if (isNative) {
+    return DEFAULT_PUBLIC_API_URL;
+  }
+
   // If in browser / desktop Vite
   if (typeof window !== 'undefined' && window.location && window.location.port === '5173') {
     return '/api';
-  }
-
-  // If inside Capacitor Android container (origin is capacitor://localhost or http://localhost)
-  if (typeof window !== 'undefined' && window.location && window.location.protocol === 'capacitor:') {
-    return 'http://10.0.2.2:5000/api'; // Default emulator fallback, can be customized in settings
   }
 
   return '/api';

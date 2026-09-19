@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Calendar, Award, Target, CheckCircle2, TrendingUp, 
-  Clock, ArrowRight, Zap, Flame, Compass, ChevronRight 
+  Clock, ArrowRight, Zap, Flame, Compass, ChevronRight, Plus 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function MobileHome({ tests = [], folders = [], onSelectTest, onNavigateTab }) {
+export default function MobileHome({ tests = [], folders = [], onSelectTest, onNavigateTab, onOpenLogger }) {
   // GATE 2027 Countdown Target: Feb 6, 2027 09:00:00
   const targetDate = new Date('2027-02-06T09:00:00').getTime();
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
@@ -136,6 +136,52 @@ export default function MobileHome({ tests = [], folders = [], onSelectTest, onN
           ))}
         </div>
       </motion.div>
+
+      {/* QUICK ACTIONS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <button
+          onClick={onOpenLogger}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '12px 14px',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.15))',
+            border: '1px solid rgba(139, 92, 246, 0.35)',
+            color: '#c4b5fd',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <Plus size={16} strokeWidth={2.5} style={{ color: '#a855f7' }} />
+          <span>Log New Exam</span>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab && onNavigateTab('tests')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '12px 14px',
+            borderRadius: '16px',
+            background: 'rgba(30, 41, 59, 0.5)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            color: '#e2e8f0',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          <span>All Tests ({totalTests})</span>
+          <ArrowRight size={14} style={{ color: '#94a3b8' }} />
+        </button>
+      </div>
 
       {/* 2. LATEST EXAM HIGHLIGHT CARD */}
       {latestTest && (

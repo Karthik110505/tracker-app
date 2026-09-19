@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, Filter, Calendar, Award, CheckCircle, 
-  Clock, ArrowUpDown, Sun, Sunset, ChevronRight, X 
+  Clock, ArrowUpDown, Sun, Sunset, ChevronRight, X, Plus 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function MobileTestList({ tests = [], folders = [], initialFolderId = null, onSelectTest }) {
+export default function MobileTestList({ tests = [], folders = [], initialFolderId = null, onSelectTest, onOpenLogger }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFolderId, setSelectedFolderId] = useState(initialFolderId);
   const [selectedYear, setSelectedYear] = useState('All');
@@ -71,26 +71,52 @@ export default function MobileTestList({ tests = [], folders = [], initialFolder
           </span>
         </div>
 
-        {/* Sort Trigger */}
-        <button
-          onClick={() => setShowSortMenu(prev => !prev)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '7px 12px',
-            borderRadius: '10px',
-            background: showSortMenu ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-            border: `1px solid ${showSortMenu ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
-            color: showSortMenu ? '#a5b4fc' : '#cbd5e1',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          <ArrowUpDown size={13} />
-          <span>Sort</span>
-        </button>
+        {/* Action Group: Log Test + Sort */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {onOpenLogger && (
+            <button
+              onClick={onOpenLogger}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '7px 12px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)'
+              }}
+            >
+              <Plus size={14} strokeWidth={2.5} />
+              <span>Log</span>
+            </button>
+          )}
+
+          {/* Sort Trigger */}
+          <button
+            onClick={() => setShowSortMenu(prev => !prev)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 12px',
+              borderRadius: '10px',
+              background: showSortMenu ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${showSortMenu ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+              color: showSortMenu ? '#a5b4fc' : '#cbd5e1',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <ArrowUpDown size={13} />
+            <span>Sort</span>
+          </button>
+        </div>
       </div>
 
       {/* Sort Dropdown Popup */}

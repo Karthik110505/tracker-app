@@ -171,6 +171,26 @@ export default function MobileSettingsModal({ onClose, onSyncTrigger }) {
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
+              onClick={() => handlePreset('https://gate-tracker-api.onrender.com/api')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                background: 'rgba(99, 102, 241, 0.2)',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                color: '#a5b4fc',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Globe size={13} />
+              <span>Render Cloud</span>
+            </button>
+            <button
+              type="button"
               onClick={() => handlePreset('/api')}
               style={{
                 padding: '6px 12px',
@@ -185,8 +205,8 @@ export default function MobileSettingsModal({ onClose, onSyncTrigger }) {
                 gap: '6px'
               }}
             >
-              <Globe size={13} />
-              <span>Desktop / Same Host</span>
+              <Server size={13} />
+              <span>Desktop Web</span>
             </button>
             <button
               type="button"

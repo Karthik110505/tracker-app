@@ -86,8 +86,9 @@ export const dbService = {
         clearPendingMutations();
       }
 
-      // 2. Fetch incremental changes from cloud
-      const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+      // 2. Fetch changes from cloud (perform full pull if local tests are empty)
+      const currentLocalTests = await this.getAllTests();
+      const lastSync = currentLocalTests.length > 0 ? localStorage.getItem(LAST_SYNC_KEY) : null;
       const syncData = await apiClient.fetchSync(lastSync);
 
       if (syncData && syncData.success) {
@@ -104,10 +105,18 @@ export const dbService = {
               fStore.put(folder);
             }
           }
+          await new Promise((res) => {
+            fTx.oncomplete = () => res();
+            fTx.onerror = () => res();
+          });
         }
 
         // Apply test updates while preserving local paperHtml
         if (tests.length > 0) {
+          // Pre-fetch local tests to prevent transaction timeout/deactivation on microtasks
+          const localTests = await this.getAllTests();
+          const localMap = new Map(localTests.map(t => [t.id, t]));
+
           const tTx = db.transaction('tests', 'readwrite');
           const tStore = tTx.objectStore('tests');
 
@@ -115,13 +124,7 @@ export const dbService = {
             if (cloudTest.deletedAt) {
               tStore.delete(cloudTest.id);
             } else {
-              // Check if we have local paperHtml for this test
-              const existingLocal = await new Promise((res) => {
-                const req = tStore.get(cloudTest.id);
-                req.onsuccess = () => res(req.result);
-                req.onerror = () => res(null);
-              });
-
+              const existingLocal = localMap.get(cloudTest.id);
               // Merge cloud metadata with local paperHtml
               const merged = {
                 ...cloudTest,
@@ -131,6 +134,10 @@ export const dbService = {
               tStore.put(merged);
             }
           }
+          await new Promise((res) => {
+            tTx.oncomplete = () => res();
+            tTx.onerror = () => res();
+          });
         }
 
         if (serverTime) {
@@ -369,6 +376,39 @@ export const dbService = {
     } catch (e) {
       console.error('Import database error:', e);
       throw e;
+    }
+  },
+
+  // Direct offline seed helper (populates local IndexedDB without triggering cloud mutation loops)
+  async seedDefaultData(folders = [], tests = []) {
+    try {
+      const db = await openDB();
+      if (Array.isArray(folders) && folders.length > 0) {
+        const fTx = db.transaction('folders', 'readwrite');
+        const fStore = fTx.objectStore('folders');
+        for (const folder of folders) {
+          fStore.put(folder);
+        }
+        await new Promise(res => {
+          fTx.oncomplete = () => res();
+          fTx.onerror = () => res();
+        });
+      }
+      if (Array.isArray(tests) && tests.length > 0) {
+        const tTx = db.transaction('tests', 'readwrite');
+        const tStore = tTx.objectStore('tests');
+        for (const test of tests) {
+          tStore.put(test);
+        }
+        await new Promise(res => {
+          tTx.oncomplete = () => res();
+          tTx.onerror = () => res();
+        });
+      }
+      return true;
+    } catch (e) {
+      console.warn('seedDefaultData error:', e);
+      return false;
     }
   }
 };

@@ -13,8 +13,8 @@ Render offers free Node.js Web Services with automatic SSL/HTTPS.
 2. Go to [dashboard.render.com](https://dashboard.render.com) and click **New +** $\rightarrow$ **Blueprint** (or **Web Service**).
 3. Connect your repository. Render will automatically detect [`server/render.yaml`](./render.yaml).
 4. In the Environment Variables settings, configure:
-   * `MONGODB_URI`: Your Atlas connection string (`mongodb+srv://gatetracker:U8vacDqk3JfiqJGx@gatetrackerapp.zzcqsft.mongodb.net/?appName=GATETRACKERAPP`)
-   * `JWT_SECRET`: Any random secure string
+   * `MONGODB_URI`: Your Atlas connection string (e.g. `mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority`)
+   * `JWT_SECRET`: Any random secure string (e.g. `generate-a-strong-random-secret-key`)
 5. Click **Deploy Web Service**.
 6. Render will assign you a live HTTPS URL, for example:
    ```text
