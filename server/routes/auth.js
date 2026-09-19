@@ -1,12 +1,18 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import { authenticateToken, generateToken } from '../middleware/auth.js';
+import { connectMongoDB } from '../server.js';
 
 const router = express.Router();
 
 // Helper to ensure default user exists if db is empty
 async function ensureDefaultUser() {
+  if (mongoose.connection.readyState === 0) {
+    await connectMongoDB();
+  }
+  if (mongoose.connection.readyState !== 1) return;
   const count = await User.countDocuments();
   if (count === 0) {
     const salt = await bcrypt.genSalt(10);

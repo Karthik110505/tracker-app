@@ -56,14 +56,62 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/tests', testRoutes);
 app.use('/api/sync', syncRoutes);
 
+let lastMongoError = null;
+
+export function getMongoUri() {
+  let uri = process.env.MONGODB_URI;
+  if (!uri) return null;
+  uri = uri.trim();
+  if ((uri.startsWith('"') && uri.endsWith('"')) || (uri.startsWith("'") && uri.endsWith("'"))) {
+    uri = uri.slice(1, -1).trim();
+  }
+  return uri;
+}
+
+export async function connectMongoDB() {
+  const uri = getMongoUri();
+  if (!uri || uri.includes('<db_password>')) {
+    lastMongoError = 'MONGODB_URI is not configured or contains placeholder in environment variables.';
+    return false;
+  }
+  if (mongoose.connection.readyState === 1) {
+    lastMongoError = null;
+    return true;
+  }
+  try {
+    const cluster = uri.split('@')[1]?.split('?')[0] || 'Atlas';
+    console.log(`⏳ Connecting to MongoDB Atlas cluster at ${cluster}...`);
+    await mongoose.connect(uri, {
+      dbName: MONGODB_DB_NAME,
+      serverSelectionTimeoutMS: 10000
+    });
+    lastMongoError = null;
+    console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
+    return true;
+  } catch (err) {
+    lastMongoError = err.message;
+    console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
+    return false;
+  }
+}
+
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  if (mongoose.connection.readyState === 0) {
+    await connectMongoDB();
+  }
+
   const dbState = mongoose.connection.readyState;
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  const uri = getMongoUri();
+
   res.json({
     status: 'ok',
     database: states[dbState] || 'unknown',
     databaseName: MONGODB_DB_NAME,
+    hasMongoUri: !!uri,
+    clusterHost: uri ? (uri.split('@')[1]?.split('?')[0] || 'configured') : 'missing',
+    connectionError: dbState === 1 ? null : lastMongoError,
     timestamp: new Date().toISOString()
   });
 });
@@ -82,21 +130,7 @@ app.use((err, req, res, next) => {
 
 // 5. Connect to MongoDB Atlas and Start Server
 async function startServer() {
-  if (!MONGODB_URI || MONGODB_URI.includes('<db_password>')) {
-    console.warn('⚠️ [MONGODB] MONGODB_URI is not configured or contains placeholder in .env.');
-    console.warn('⚠️ [MONGODB] The server will run in offline/unconnected mode until valid credentials are provided.');
-  } else {
-    try {
-      console.log(`⏳ Connecting to MongoDB Atlas cluster at ${MONGODB_URI.split('@')[1]?.split('?')[0] || 'Atlas'}...`);
-      await mongoose.connect(MONGODB_URI, {
-        dbName: MONGODB_DB_NAME,
-        serverSelectionTimeoutMS: 8000
-      });
-      console.log(`✅ [MONGODB] Connected successfully to database: ${MONGODB_DB_NAME}`);
-    } catch (err) {
-      console.error('❌ [MONGODB ERROR]: Failed to connect to MongoDB Atlas:', err.message);
-    }
-  }
+  await connectMongoDB();
 
   if (!process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
