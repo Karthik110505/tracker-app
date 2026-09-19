@@ -87,11 +87,31 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/api/auth': 'http://localhost:5000',
-      '/api/folders': 'http://localhost:5000',
-      '/api/tests': 'http://localhost:5000',
-      '/api/sync': 'http://localhost:5000',
-      '/api/health': 'http://localhost:5000'
+      '/api/auth': {
+        target: 'https://gate-tracker-api.onrender.com',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/folders': {
+        target: 'https://gate-tracker-api.onrender.com',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/tests': {
+        target: 'https://gate-tracker-api.onrender.com',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/sync': {
+        target: 'https://gate-tracker-api.onrender.com',
+        changeOrigin: true,
+        secure: false
+      },
+      '/api/health': {
+        target: 'https://gate-tracker-api.onrender.com',
+        changeOrigin: true,
+        secure: false
+      }
     }
   }
 });

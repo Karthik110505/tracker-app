@@ -86,9 +86,35 @@ export const dbService = {
         clearPendingMutations();
       }
 
-      // 2. Fetch changes from cloud (perform full pull if local tests are empty)
+      // 2. Reconcile unpushed local tests to cloud
       const currentLocalTests = await this.getAllTests();
-      const lastSync = currentLocalTests.length > 0 ? localStorage.getItem(LAST_SYNC_KEY) : null;
+      const cloudTestsList = await apiClient.getTests();
+      const cloudTestIdMap = new Map((cloudTestsList || []).map(t => [String(t.id), t]));
+
+      const unpushedTests = currentLocalTests.filter(t => !t.deletedAt && !cloudTestIdMap.has(String(t.id)));
+      if (unpushedTests.length > 0) {
+        console.log(`📤 [SYNC] Reconciling ${unpushedTests.length} unpushed local tests to cloud...`);
+        await apiClient.pushSync([], unpushedTests);
+      }
+
+      // 3. Reconcile any missing cloud tests to local IndexedDB (e.g., Android receiving newly added tests)
+      const localTestIdMap = new Map(currentLocalTests.map(t => [String(t.id), t]));
+      const missingFromLocal = (cloudTestsList || []).filter(ct => !localTestIdMap.has(String(ct.id)));
+      if (missingFromLocal.length > 0) {
+        console.log(`📥 [SYNC] Pulling ${missingFromLocal.length} missing cloud tests into local IndexedDB...`);
+        const tTx = db.transaction('tests', 'readwrite');
+        const tStore = tTx.objectStore('tests');
+        for (const missingTest of missingFromLocal) {
+          tStore.put(missingTest);
+        }
+        await new Promise((res) => {
+          tTx.oncomplete = () => res();
+          tTx.onerror = () => res();
+        });
+      }
+
+      // 4. Fetch incremental changes from cloud
+      const lastSync = (currentLocalTests.length > 0 && unpushedTests.length === 0) ? localStorage.getItem(LAST_SYNC_KEY) : null;
       const syncData = await apiClient.fetchSync(lastSync);
 
       if (syncData && syncData.success) {
@@ -113,9 +139,8 @@ export const dbService = {
 
         // Apply test updates while preserving local paperHtml
         if (tests.length > 0) {
-          // Pre-fetch local tests to prevent transaction timeout/deactivation on microtasks
-          const localTests = await this.getAllTests();
-          const localMap = new Map(localTests.map(t => [t.id, t]));
+          const freshLocalTests = await this.getAllTests();
+          const localMap = new Map(freshLocalTests.map(t => [String(t.id), t]));
 
           const tTx = db.transaction('tests', 'readwrite');
           const tStore = tTx.objectStore('tests');
@@ -124,7 +149,7 @@ export const dbService = {
             if (cloudTest.deletedAt) {
               tStore.delete(cloudTest.id);
             } else {
-              const existingLocal = localMap.get(cloudTest.id);
+              const existingLocal = localMap.get(String(cloudTest.id));
               // Merge cloud metadata with local paperHtml
               const merged = {
                 ...cloudTest,
@@ -144,8 +169,14 @@ export const dbService = {
           localStorage.setItem(LAST_SYNC_KEY, serverTime);
         }
 
-        console.log(`✅ [SYNC] Cloud sync complete. Updated ${folders.length} folders, ${tests.length} tests.`);
-        return { success: true, updatedFolders: folders.length, updatedTests: tests.length };
+        console.log(`✅ [SYNC] Cloud sync complete. Updated ${folders.length} folders, ${tests.length} tests (Reconciled: ${unpushedTests.length} pushed, ${missingFromLocal.length} pulled).`);
+        return { 
+          success: true, 
+          updatedFolders: folders.length, 
+          updatedTests: tests.length,
+          reconciledPushed: unpushedTests.length,
+          reconciledPulled: missingFromLocal.length
+        };
       }
     } catch (err) {
       console.warn('⚠️ [SYNC] Cloud sync deferred (network offline or server unreachable):', err.message);
@@ -227,6 +258,8 @@ export const dbService = {
         console.warn('Failed cloud saveFolder, queuing offline mutation:', err.message);
         queuePendingMutation('folder', folder);
       }
+    } else {
+      queuePendingMutation('folder', folder);
     }
 
     return folder;
@@ -258,6 +291,8 @@ export const dbService = {
         console.warn('Failed cloud deleteFolder, queuing deletion:', err.message);
         queuePendingMutation('folder', { id: folderId, deletedAt: new Date().toISOString() });
       }
+    } else {
+      queuePendingMutation('folder', { id: folderId, deletedAt: new Date().toISOString() });
     }
   },
 
@@ -307,6 +342,9 @@ export const dbService = {
         console.warn('Failed cloud saveTest, queuing offline mutation:', err.message);
         queuePendingMutation('test', test);
       }
+    } else {
+      console.log('Unauthenticated during saveTest, queuing offline mutation');
+      queuePendingMutation('test', test);
     }
 
     return test;
@@ -332,6 +370,8 @@ export const dbService = {
         console.warn('Failed cloud deleteTest, queuing deletion:', err.message);
         queuePendingMutation('test', { id: testId, deletedAt: new Date().toISOString() });
       }
+    } else {
+      queuePendingMutation('test', { id: testId, deletedAt: new Date().toISOString() });
     }
   },
 

@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
 import { Lock, AlertCircle, KeyRound } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 export default function Login({ onLogin }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (password === 'Karthik@1155') {
       localStorage.setItem('gate_tracker_auth', 'true');
+      try {
+        await apiClient.login(password, 'karthik');
+      } catch (err) {
+        console.warn('Background cloud auth failed (offline/network):', err.message);
+      }
       onLogin();
     } else {
       setError(true);

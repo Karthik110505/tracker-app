@@ -27,7 +27,8 @@ export function getApiBaseUrl() {
     return '/api';
   }
 
-  return '/api';
+  // Default to direct public Render cloud API
+  return DEFAULT_PUBLIC_API_URL;
 }
 
 export function setApiBaseUrl(url) {

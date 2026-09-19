@@ -72,7 +72,16 @@ export default function App() {
         setFolders(f);
         setTests(t);
 
-        // 3. Trigger cloud sync if authenticated
+        // 3. Ensure cloud authentication if logged in
+        if (!apiClient.isAuthenticated()) {
+          try {
+            await apiClient.login('Karthik@1155', 'karthik');
+          } catch (authErr) {
+            console.warn('Auto cloud auth failed (offline/network):', authErr.message);
+          }
+        }
+
+        // 4. Trigger cloud sync if authenticated
         if (apiClient.isAuthenticated()) {
           setSyncStatus('syncing');
           const syncRes = await dbService.syncWithCloud();
@@ -97,6 +106,13 @@ export default function App() {
   const handleManualSync = async () => {
     setSyncStatus('syncing');
     try {
+      if (!apiClient.isAuthenticated()) {
+        try {
+          await apiClient.login('Karthik@1155', 'karthik');
+        } catch (e) {
+          console.warn('Manual sync cloud login failed:', e.message);
+        }
+      }
       const syncRes = await dbService.syncWithCloud();
       if (syncRes && syncRes.success) {
         const f = await dbService.getFolders();
@@ -151,6 +167,8 @@ export default function App() {
         }
       });
       setCurrentView('dashboard');
+      // Trigger background sync with cloud
+      dbService.syncWithCloud().catch(err => console.warn('Background sync after save:', err.message));
     } catch (e) {
       alert('Failed to save test record: ' + e.message);
     }
@@ -164,6 +182,8 @@ export default function App() {
       if (selectedPaper && selectedPaper.id === testId) {
         setSelectedPaper(null);
       }
+      // Trigger background sync with cloud
+      dbService.syncWithCloud().catch(err => console.warn('Background sync after delete:', err.message));
     } catch (e) {
       alert('Failed to delete test: ' + e.message);
     }
