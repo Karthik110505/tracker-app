@@ -1,4 +1,5 @@
 // Frontend API client for GATE Tracker communicating with the cloud backend
+import { Capacitor } from '@capacitor/core';
 
 const TOKEN_KEY = 'gate_tracker_jwt';
 const API_URL_KEY = 'gate_tracker_api_base_url';
@@ -12,9 +13,8 @@ export function getApiBaseUrl() {
 
   // If inside Capacitor Android native app
   const isNative = typeof window !== 'undefined' && (
-    window.Capacitor !== undefined ||
+    Capacitor.isNativePlatform() ||
     window.location.protocol === 'capacitor:' ||
-    window.location.protocol === 'ionic:' ||
     window.location.protocol === 'content:'
   );
 
